@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date
 from pathlib import Path
 import re
 
@@ -64,28 +64,103 @@ def extract_revers(source: Path, page_number: int, grid: DetectedGrid,
 
 
 def _extract_metadata(document: ReversDocument, words: list[DocumentWord], grid: DetectedGrid) -> None:
-    # Preserve reading order outside the equipment table; labels vary across revisions.
-    top = sorted((word for word in words if word.bbox.y1 < grid.bbox.y0),
-                 key=lambda word: (word.bbox.y0, word.bbox.x0))
-    lines: dict[int, list[str]] = {}
-    for word in top:
-        lines.setdefault(round(word.bbox.center_y / 5), []).append(word.text)
-    text_lines = [" ".join(parts) for parts in lines.values()]
-    for line in text_lines:
-        folded = line.casefold()
-        value = re.split(r"[:：]", line, maxsplit=1)[-1].strip()
-        if "jmbg" in folded or "identifik" in folded:
-            document.person_identifier = re.sub(r"\D", "", value)
-        elif "organizacion" in folded or "odeljenje" in folded:
-            document.organization_unit = value
-        elif "ime" in folded or "zaposlen" in folded:
-            document.person_name = value
-    footer = " ".join(word.text for word in sorted(words, key=lambda w: (w.bbox.y0, w.bbox.x0))
-                      if word.bbox.y0 > grid.bbox.y1)
-    match = re.search(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})", footer)
-    if match:
-        try:
-            document.handover_date = datetime.strptime(".".join(match.groups()), "%d.%m.%Y").date()
-        except ValueError:
-            document.warnings.append(ConversionWarning("Invalid handover date", document.page_number,
-                                                        field="handover_date", value=match.group(0)))
+    _extract_header_geometry(document, words, grid)
+    _extract_footer_geometry(document, words, grid)
+
+
+_LABEL_FRAGMENTS = ("prezime", "ime", "naziv", "organizacione", "jedinice")
+
+
+def _extract_header_geometry(document: ReversDocument, words: list[DocumentWord],
+                             grid: DetectedGrid) -> None:
+    """Read values above their caption line, rather than treating captions as values."""
+    page_height = max((word.bbox.y1 for word in words), default=grid.bbox.y1)
+    band_height = max(grid.bbox.height * .18, page_height * .08)
+    candidates = [word for word in words
+                  if grid.bbox.y0 - band_height <= word.bbox.center_y < grid.bbox.y0]
+    label_words = [word for word in candidates
+                   if any(token in word.text.casefold() for token in _LABEL_FRAGMENTS)]
+    if not label_words:
+        return
+    label_y = sum(word.bbox.center_y for word in label_words) / len(label_words)
+    value_words = [word for word in candidates
+                   if word.bbox.center_y < label_y - max(1.0, word.bbox.height * .15)
+                   and not _is_metadata_label(word.text)]
+    if not value_words:
+        return
+
+    left = grid.bbox.x0
+    width = grid.bbox.width
+    # Metadata boxes use relative horizontal regions across REVERS revisions.
+    person_words = [word for word in value_words if word.bbox.center_x < left + width * .48]
+    identifier_words = [word for word in value_words
+                        if left + width * .48 <= word.bbox.center_x < left + width * .68]
+    organization_words = [word for word in value_words
+                          if word.bbox.center_x >= left + width * .68]
+    document.person_name = _join_words(person_words)
+    identifier = "".join(re.findall(r"\d", _join_words(identifier_words)))
+    if identifier:
+        document.person_identifier = identifier
+    document.organization_unit = _join_words(organization_words)
+
+
+def _extract_footer_geometry(document: ReversDocument, words: list[DocumentWord],
+                             grid: DetectedGrid) -> None:
+    footer = [word for word in words if word.bbox.center_y > grid.bbox.y1]
+    lines = _word_lines(footer)
+    for line in lines:
+        text = _join_words(line)
+        folded = text.casefold()
+        if "zaklju" in folded and "broj" in folded:
+            document.closing_item_number = _value_after_label(text, r"broj(?:em)?")
+        elif "datum" in folded and ("predaj" in folded or "oprem" in folded):
+            raw_date = _value_after_label(text, r"opreme")
+            parsed = _parse_date(raw_date)
+            if parsed is not None:
+                document.handover_date = parsed
+            elif re.search(r"\d", raw_date):
+                document.warnings.append(ConversionWarning(
+                    "Invalid or uncertain handover date", document.page_number,
+                    field="handover_date", value=raw_date))
+        elif "opremu predao" in folded:
+            document.handed_over_by = _value_after_label(text, r"opremu\s+predao")
+        elif "opremu primio" in folded:
+            document.received_by = _value_after_label(text, r"opremu\s+primio")
+
+
+def _parse_date(value: str) -> date | None:
+    parts = re.search(r"(?<!\d)(\d{1,2})\s*[./|\- ]\s*(\d{1,2})\s*[./|\- ]\s*(\d{4})(?!\d)", value)
+    if not parts:
+        return None
+    try:
+        return date(int(parts.group(3)), int(parts.group(2)), int(parts.group(1)))
+    except ValueError:
+        return None
+
+
+def _is_metadata_label(text: str) -> bool:
+    folded = text.casefold().strip("() :")
+    return any(fragment in folded for fragment in _LABEL_FRAGMENTS)
+
+
+def _word_lines(words: list[DocumentWord]) -> list[list[DocumentWord]]:
+    lines: list[list[DocumentWord]] = []
+    for word in sorted(words, key=lambda item: (item.bbox.center_y, item.bbox.x0)):
+        line = next((candidate for candidate in reversed(lines)
+                     if abs(candidate[0].bbox.center_y - word.bbox.center_y)
+                     <= max(candidate[0].bbox.height, word.bbox.height) * .65), None)
+        if line is None:
+            lines.append([word])
+        else:
+            line.append(word)
+    return lines
+
+
+def _join_words(words: list[DocumentWord]) -> str:
+    return " ".join(word.text.strip() for word in sorted(words, key=lambda item: item.bbox.x0)
+                    if word.text.strip()).strip()
+
+
+def _value_after_label(value: str, label_pattern: str) -> str:
+    match = re.search(label_pattern + r"\s*[:：]?\s*", value, flags=re.IGNORECASE)
+    return value[match.end():].strip(" _|:：") if match else ""

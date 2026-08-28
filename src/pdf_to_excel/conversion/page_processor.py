@@ -9,7 +9,7 @@ import numpy as np
 
 from pdf_to_excel.config import Settings
 from pdf_to_excel.models import (BoundingBox, DetectedGrid, DocumentWord, OCRMode,
-                                 PageType, ReversDocument)
+                                 PageType, ReversDocument, ConversionWarning)
 from pdf_to_excel.ocr.deskew import deskew
 from pdf_to_excel.ocr.orientation import correct_orientation
 from pdf_to_excel.ocr.preprocessing import (OCRProfile, preprocess,
@@ -34,7 +34,7 @@ class PageResult:
     grid: DetectedGrid | None = None
     grid_confidence: float = 0.0
     revers: ReversDocument | None = None
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[ConversionWarning] = field(default_factory=list)
 
 
 class PageProcessor:
@@ -61,6 +61,8 @@ class PageProcessor:
         needs_raster = force_ocr or analysis.page_type in (PageType.SCANNED, PageType.MIXED) or grid is None
         if needs_raster:
             rendered = render_page(page, self.dpi)
+            # Configure pytesseract before orientation detection (which invokes OSD).
+            self._ensure_ocr()
             # All raster geometry and OCR use this same corrected coordinate system.
             oriented = deskew(correct_orientation(rendered))
             rh, rv, horizontal_mask, vertical_mask = detect_ruled_lines(oriented)
@@ -86,10 +88,13 @@ class PageProcessor:
             ocr_words = self._extract_ocr(preprocess(rendered), page.number + 1)
             ocr_words = _scale_words(ocr_words, page.rect.width / rendered.shape[1],
                                      page.rect.height / rendered.shape[0])
-            words, _ = merge_document_words(native, ocr_words)
+            words, merge_warnings = merge_document_words(native, ocr_words, page.number + 1)
+        else:
+            merge_warnings = []
 
         template = native_match or detect_template(" ".join(word.text for word in words))
         result = PageResult(analysis, template, words, grid, grid_confidence)
+        result.warnings.extend(merge_warnings)
         if template and template.name == "REVERS" and grid is not None:
             if rendered is None:
                 rendered = render_page(page, self.dpi)
@@ -99,12 +104,16 @@ class PageProcessor:
                 result.words = words
             result.revers = extract_revers(self.source, page.number + 1, grid, words,
                                            template.confidence * grid_confidence)
+            result.revers.warnings[:0] = result.warnings
         return result
 
     def _extract_ocr(self, image: np.ndarray, page_number: int) -> list[DocumentWord]:
+        return self._ensure_ocr().extract_words(image, page_number, self.languages, psm=6)
+
+    def _ensure_ocr(self) -> TesseractEngine:
         self._ocr = self._ocr or TesseractEngine(self.settings.tesseract_cmd,
                                                   self.settings.confidence_threshold)
-        return self._ocr.extract_words(image, page_number, self.languages, psm=6)
+        return self._ocr
 
 
 def _scale_grid(grid: DetectedGrid, sx: float, sy: float) -> DetectedGrid:
@@ -120,7 +129,8 @@ def _scale_words(words: list[DocumentWord], sx: float, sy: float) -> list[Docume
                          word.confidence, word.page_number, word.source) for word in words]
 
 
-def merge_document_words(native: list[DocumentWord], ocr: list[DocumentWord]) -> tuple[list[DocumentWord], list[str]]:
+def merge_document_words(native: list[DocumentWord], ocr: list[DocumentWord],
+                         page_number: int = 1) -> tuple[list[DocumentWord], list[ConversionWarning]]:
     merged, warnings = list(native), []
     for candidate in ocr:
         overlaps = [word for word in merged if word.bbox.overlap_ratio(candidate.bbox) >= .6]
@@ -131,7 +141,9 @@ def merge_document_words(native: list[DocumentWord], ocr: list[DocumentWord]) ->
                                                                candidate.text.casefold()).ratio())
         similarity = SequenceMatcher(None, best.text.casefold(), candidate.text.casefold()).ratio()
         if similarity < .7:
-            warnings.append("Native/OCR disagreement")
+            warnings.append(ConversionWarning(
+                "Native/OCR disagreement", page_number, value=candidate.text,
+                confidence=candidate.confidence, source=candidate.source))
             if candidate.confidence > best.confidence:
                 merged.remove(best)
                 merged.append(candidate)
@@ -139,7 +151,8 @@ def merge_document_words(native: list[DocumentWord], ocr: list[DocumentWord]) ->
 
 
 def _suppress_phantoms(words: list[DocumentWord], grid: DetectedGrid, image: np.ndarray,
-                       page_width: float, page_height: float, warnings: list[str]) -> list[DocumentWord]:
+                       page_width: float, page_height: float,
+                       warnings: list[ConversionWarning]) -> list[DocumentWord]:
     result = []
     for word in words:
         suspicious = (len(word.text.strip()) == 1 and not word.text.isdigit() and
@@ -147,7 +160,9 @@ def _suppress_phantoms(words: list[DocumentWord], grid: DetectedGrid, image: np.
         pixel_bbox = pdf_bbox_to_pixels(word.bbox, page_width, page_height,
                                         image.shape[1], image.shape[0])
         if suspicious and not has_visible_foreground(image, pixel_bbox):
-            warnings.append("phantom native text suppressed")
+            warnings.append(ConversionWarning(
+                "Phantom native text suppressed", word.page_number, value=word.text,
+                confidence=word.confidence, source=word.source))
             continue
         result.append(word)
     return result

@@ -2,6 +2,7 @@ from pathlib import Path
 import numpy as np
 import pytesseract
 from pytesseract import Output
+from pdf_to_excel.exceptions import MissingOcrLanguageError
 from pdf_to_excel.models import BoundingBox, DocumentWord, WordSource
 from pdf_to_excel.text.normalizer import normalize_text
 from .tesseract_locator import locate_tesseract
@@ -11,6 +12,26 @@ class TesseractEngine:
     def __init__(self, command: Path | None = None, confidence_threshold: float = 0.35) -> None:
         pytesseract.pytesseract.tesseract_cmd = str(locate_tesseract(command))
         self.confidence_threshold = confidence_threshold
+
+    def get_available_languages(self) -> set[str]:
+        """Return installed trained-data names using the configured executable."""
+        return set(pytesseract.get_languages(config=""))
+
+    def validate_languages(self, languages: tuple[str, ...], *, require_osd: bool = False) -> None:
+        required = set(languages)
+        if require_osd:
+            required.add("osd")
+        missing = sorted(required - self.get_available_languages())
+        if missing:
+            friendly = {
+                "srp": "Serbian Cyrillic OCR language is not available.",
+                "srp_latn": "Serbian Latin OCR language is not available.",
+                "eng": "English OCR language is not available.",
+                "osd": "OCR orientation data is not available.",
+            }
+            details = " ".join(friendly.get(item, f"OCR language '{item}' is not available.")
+                               for item in missing)
+            raise MissingOcrLanguageError(details)
 
     def extract_words(
         self, image: np.ndarray, page_number: int, languages: tuple[str, ...]
