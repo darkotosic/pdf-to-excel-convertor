@@ -7,7 +7,7 @@ from pdf_to_excel.text.normalizer import normalize_text
 def extract_digital_tables(path: Path, page_number: int) -> list[ExtractedTable]:
     with pdfplumber.open(path) as document:
         page = document.pages[page_number - 1]
-        raw_tables = page.extract_tables() or []
+        raw_tables: list[list[list[str | None]]] = page.extract_tables() or []
         if not raw_tables:
             words = page.extract_words() or []
             raw_tables = [_words_to_rows(words)] if words else []
@@ -23,11 +23,20 @@ def extract_digital_tables(path: Path, page_number: int) -> list[ExtractedTable]
         return result
 
 
-def _words_to_rows(words: list[dict[str, object]]) -> list[list[str]]:
+def _words_to_rows(words: list[dict[str, object]]) -> list[list[str | None]]:
     lines: list[list[dict[str, object]]] = []
-    for word in sorted(words, key=lambda w: (float(w["top"]), float(w["x0"]))):
+    def coordinate(word: dict[str, object], key: str) -> float:
+        value = word[key]
+        if not isinstance(value, (str, int, float)):
+            raise TypeError(f"Invalid PDF word coordinate: {value!r}")
+        return float(value)
+
+    for word in sorted(words, key=lambda w: (coordinate(w, "top"), coordinate(w, "x0"))):
         line = next(
-            (line for line in lines if abs(float(line[0]["top"]) - float(word["top"])) <= 4), None
+            (line for line in lines if abs(coordinate(line[0], "top") - coordinate(word, "top")) <= 4), None
         )
-        (line if line is not None else lines.append([]) or lines[-1]).append(word)
+        if line is None:
+            line = []
+            lines.append(line)
+        line.append(word)
     return [[str(word["text"]) for word in line] for line in lines]

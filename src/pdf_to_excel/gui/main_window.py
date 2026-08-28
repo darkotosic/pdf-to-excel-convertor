@@ -28,6 +28,8 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(APP_NAME)
+        self._thread: QThread | None = None
+        self._worker: ConversionWorker | None = None
         self.resize(720, 320)
         root, form = QWidget(), QFormLayout()
         self.input_edit, self.output_edit = PdfDropEdit(), PdfDropEdit()
@@ -86,29 +88,28 @@ class MainWindow(QMainWindow):
         options = ConversionOptions(
             Path(self.input_edit.text()), Path(self.output_edit.text()), languages=languages
         )
-        self.thread, self.worker = QThread(self), ConversionWorker(options)
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.worker.run)
-        self.worker.progress.connect(
-            lambda value, message: (
-                self.progress.setValue(value),
-                self.statusBar().showMessage(message),
-            )
-        )
-        self.worker.succeeded.connect(self._success)
-        self.worker.failed.connect(lambda message: QMessageBox.critical(self, APP_NAME, message))
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(lambda: self.convert_button.setEnabled(True))
-        self.thread.finished.connect(self.worker.deleteLater)
+        self._thread, self._worker = QThread(self), ConversionWorker(options)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.progress.connect(self._update_progress)
+        self._worker.succeeded.connect(self._success)
+        self._worker.failed.connect(lambda message: QMessageBox.critical(self, APP_NAME, message))
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.finished.connect(lambda: self.convert_button.setEnabled(True))
+        self._thread.finished.connect(self._worker.deleteLater)
         self.convert_button.setEnabled(False)
-        self.thread.start()
+        self._thread.start()
+
+    def _update_progress(self, value: int, message: str) -> None:
+        self.progress.setValue(value)
+        self.statusBar().showMessage(message)
 
     def _success(self, path: str) -> None:
         if (
             QMessageBox.question(
                 self, APP_NAME, f"Conversion complete.\n{path}\n\nOpen the workbook?"
             )
-            == QMessageBox.Yes
+            == QMessageBox.StandardButton.Yes
         ):
             QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 

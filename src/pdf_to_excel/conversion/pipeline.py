@@ -2,7 +2,7 @@ from collections.abc import Callable
 import fitz
 from pdf_to_excel.config import Settings
 from pdf_to_excel.exceptions import CancelledError, ConversionError
-from pdf_to_excel.models import ConversionOptions, ConversionResult, OCRMode
+from pdf_to_excel.models import ConversionOptions, ConversionResult, ExtractedTable, OCRMode
 from pdf_to_excel.pdf.analyzer import analyze_page
 from pdf_to_excel.pdf.digital_extractor import extract_digital_tables
 from pdf_to_excel.pdf.renderer import render_page
@@ -35,7 +35,7 @@ class ConversionPipeline:
             pages = list(options.pages or range(1, document.page_count + 1))
             if any(page < 1 or page > document.page_count for page in pages):
                 raise ConversionError("Page selection is outside the document range.")
-            tables = []
+            tables: list[ExtractedTable] = []
             engine = None
             for completed, page_number in enumerate(pages):
                 if cancelled():

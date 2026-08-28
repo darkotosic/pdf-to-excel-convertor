@@ -15,13 +15,11 @@ Latin, English, and mixed-script documents are preserved as Unicode.
 ## Install and run
 
 Install Python 3.12 x64 and Tesseract 5 with `srp`, `srp_latn`, and `eng` data.
-Then run:
+Then run from a clean checkout (no `PYTHONPATH` is required):
 
 ```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python app.py
+.\scripts\setup_dev.ps1
+.\scripts\run.ps1
 ```
 
 Tesseract is located from the configured path, `TESSERACT_CMD`, `PATH`, the
@@ -31,7 +29,7 @@ the platform-specific user configuration directory.
 ## Development
 
 ```powershell
-pip install -r requirements-dev.txt
+.\scripts\setup_dev.ps1
 ./scripts/check.ps1
 ./scripts/test.ps1
 ./scripts/build_windows.ps1
