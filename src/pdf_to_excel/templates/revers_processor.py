@@ -6,6 +6,7 @@ import re
 
 from pdf_to_excel.models import (ConversionWarning, DetectedGrid, DocumentWord,
                                  EquipmentItem, ReversDocument)
+from pdf_to_excel.ocr.artifacts import is_ocr_table_artifact
 from pdf_to_excel.tables.cell_assignment import assign_words_to_cells
 
 
@@ -37,7 +38,21 @@ def extract_revers(source: Path, page_number: int, grid: DetectedGrid,
     if sum(token in header for token in expected) < 3:
         document.warnings.append(ConversionWarning("Header partially detected", page_number))
     for index, row in enumerate(cells[1:], 1):
-        values = [cell.text.strip() for cell in row]
+        fields = ("item_number", "equipment_type", "model", "quantity",
+                  "serial_number", "inventory_number")
+        values = []
+        for field_name, cell in zip(fields, row, strict=True):
+            value = cell.text.strip()
+            touches_border = cell.bbox is not None and any(
+                abs(edge - boundary) <= 2
+                for edge in (cell.bbox.x0, cell.bbox.x1)
+                for boundary in grid.column_boundaries)
+            if is_ocr_table_artifact(
+                value, field=field_name, confidence=cell.confidence,
+                touches_cell_border=touches_border,
+            ):
+                value = ""
+            values.append(value)
         confidence = min((cell.confidence for cell in row if cell.confidence is not None), default=1.0)
         document.equipment_items.append(EquipmentItem(
             item_number=values[0], equipment_type=values[1], model=values[2],

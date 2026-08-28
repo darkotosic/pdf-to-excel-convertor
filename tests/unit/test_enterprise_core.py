@@ -5,6 +5,9 @@ import numpy as np
 
 from pdf_to_excel.excel.exporter import available_output_path
 from pdf_to_excel.models import BoundingBox, DetectedLine, EquipmentItem, OCRWord
+from pdf_to_excel.ocr.artifacts import is_ocr_table_artifact
+from pdf_to_excel.ocr.deskew import estimate_skew_angle
+from pdf_to_excel.ocr.preprocessing import remove_detected_table_lines
 from pdf_to_excel.pdf.visibility_validator import has_visible_foreground
 from pdf_to_excel.tables.grid_detector import cell_boxes, detect_grids
 from pdf_to_excel.tables.line_detector import detect_ruled_lines, merge_collinear
@@ -61,3 +64,28 @@ def test_output_collision(tmp_path: Path) -> None:
     target = tmp_path / "revers.xlsx"
     target.touch()
     assert available_output_path(target).name == "revers (1).xlsx"
+
+
+def test_ocr_table_artifacts_are_field_aware() -> None:
+    for value in ("|", "||", "_", "__", "__|", "|I"):
+        assert is_ocr_table_artifact(
+            value, field="model", confidence=0.2, touches_cell_border=True)
+    assert not is_ocr_table_artifact("-12", field="quantity", confidence=0.4)
+    assert not is_ocr_table_artifact("AB-12", field="serial_number", confidence=0.4)
+
+
+def test_line_removal_preserves_text() -> None:
+    image = np.full((100, 240), 255, np.uint8)
+    cv2.line(image, (5, 50), (235, 50), 0, 2)
+    cv2.putText(image, "Model", (70, 35), cv2.FONT_HERSHEY_SIMPLEX, .7, 0, 2)
+    _, _, horizontal_mask, vertical_mask = detect_ruled_lines(image)
+    cleaned = remove_detected_table_lines(image, horizontal_mask, vertical_mask)
+    assert cleaned[50, 20] > 240
+    assert np.count_nonzero(cleaned[15:40, 65:145] < 128) > 10
+
+
+def test_deskew_uses_horizontal_rules() -> None:
+    image = np.full((220, 420), 255, np.uint8)
+    for y in (50, 100, 150):
+        cv2.line(image, (20, y), (400, y + 13), 0, 2)
+    assert 1.0 < estimate_skew_angle(image) < 3.0

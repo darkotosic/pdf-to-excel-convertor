@@ -20,11 +20,11 @@ class ConversionPipeline:
     def convert(self, options: ConversionOptions, progress: ProgressCallback | None = None,
                 cancelled: Callable[[], bool] = lambda: False) -> ConversionResult:
         if not options.input_path.is_file() or options.input_path.suffix.lower() != ".pdf":
-            raise ConversionError("Select an existing PDF file.")
+            raise ConversionError("Izaberite postojeći PDF dokument.")
         try:
             document = fitz.open(options.input_path)
         except Exception as error:
-            raise ConversionError("The PDF could not be opened.") from error
+            raise ConversionError("PDF dokument nije moguće otvoriti.") from error
         tables: list[ExtractedTable] = []
         structured = []
         processor = PageProcessor(options.input_path, self.settings, options.ocr_mode,
@@ -32,10 +32,10 @@ class ConversionPipeline:
         with document:
             pages = tuple(options.pages or range(1, document.page_count + 1))
             if any(page < 1 or page > document.page_count for page in pages):
-                raise ConversionError("Page selection is outside the document range.")
+                raise ConversionError("Izbor stranica je izvan opsega dokumenta.")
             for completed, page_number in enumerate(pages):
                 if cancelled():
-                    raise CancelledError("Conversion cancelled.")
+                    raise CancelledError("Pretvaranje je otkazano.")
                 result = processor.process(document[page_number - 1])
                 if result.revers:
                     structured.append(result.revers)
@@ -45,9 +45,9 @@ class ConversionPipeline:
                     tables.extend(table for table in cleaned if table.rows)
                 if progress:
                     progress(ProgressUpdate(completed + 1, len(pages),
-                                            f"Processed page {page_number}"))
+                                            f"Obrađena stranica {page_number}"))
         if cancelled():
-            raise CancelledError("Conversion cancelled.")
+            raise CancelledError("Pretvaranje je otkazano.")
         final_path = export_tables(tables, options.output_path, structured,
                                    options.output_mode, options.include_empty_template_rows)
         return ConversionResult(final_path, tables, len(pages), list(structured))
