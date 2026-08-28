@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import shutil
-from pdf_to_excel.exceptions import DependencyError
+from pdf_to_excel.exceptions import TesseractNotFoundError
 from pdf_to_excel.utils.paths import get_resource_path
 
 
@@ -22,4 +22,6 @@ def locate_tesseract(configured: Path | None = None) -> Path:
     for candidate in candidates:
         if candidate and candidate.is_file():
             return candidate
-    raise DependencyError("Tesseract OCR was not found. Install Tesseract 5 or configure its path.")
+    raise TesseractNotFoundError(
+        "Tesseract OCR was not found. Reinstall the application or configure its path."
+    )

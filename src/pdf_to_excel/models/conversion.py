@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from .document import ConversionStatus, ConversionWarning
 from .table import ExtractedTable
 
 
@@ -31,6 +32,8 @@ class ConversionOptions:
 @dataclass(slots=True)
 class ConversionResult:
     output_path: Path
+    status: ConversionStatus = ConversionStatus.SUCCESS
     tables: list[ExtractedTable] = field(default_factory=list)
     pages_processed: int = 0
     structured_documents: list[object] = field(default_factory=list)
+    warnings: list[ConversionWarning] = field(default_factory=list)
