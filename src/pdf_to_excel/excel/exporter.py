@@ -2,13 +2,16 @@ from pathlib import Path
 import os
 import tempfile
 from openpyxl import Workbook, load_workbook
-from pdf_to_excel.models import ExtractedTable
+from pdf_to_excel.models import ExtractedTable, OutputMode, ReversDocument
 from pdf_to_excel.text.type_inference import infer_value
 from .formatting import format_sheet
 from .security import safe_excel_text
 
 
-def export_tables(tables: list[ExtractedTable], destination: Path) -> None:
+def export_tables(tables: list[ExtractedTable], destination: Path,
+                  documents: list[ReversDocument] | None = None,
+                  output_mode: OutputMode = OutputMode.PRESERVE_TABLES,
+                  include_empty_rows: bool = False) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
         destination = available_output_path(destination)
@@ -19,9 +22,12 @@ def export_tables(tables: list[ExtractedTable], destination: Path) -> None:
     active = workbook.active
     if active is not None:
         workbook.remove(active)
-    if not tables:
+    documents = documents or []
+    if not tables and not documents:
         workbook.create_sheet("No tables found").append(["No tabular content was detected."])
-    for table in tables:
+    if documents and output_mode in (OutputMode.STRUCTURED, OutputMode.BOTH):
+        _add_structured_sheets(workbook, documents, include_empty_rows)
+    for table in tables if output_mode in (OutputMode.PRESERVE_TABLES, OutputMode.BOTH) else []:
         sheet = workbook.create_sheet(
             _unique_title(
                 workbook.sheetnames, f"Page {table.page_number} Table {table.table_index}"
@@ -45,6 +51,53 @@ def export_tables(tables: list[ExtractedTable], destination: Path) -> None:
         os.replace(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
+    return destination
+
+
+def _add_structured_sheets(workbook: Workbook, documents: list[ReversDocument],
+                           include_empty_rows: bool) -> None:
+    equipment = workbook.create_sheet("Equipment")
+    equipment.append(["Source File", "Page", "Person", "Person ID", "Organization Unit",
+                      "Item No.", "Equipment Type", "Model", "Quantity", "Serial Number",
+                      "Inventory Number", "Handover Date", "Handed Over By", "Received By",
+                      "Confidence"])
+    for document in documents:
+        items = document.equipment_items if include_empty_rows else document.populated_items()
+        for item in items:
+            equipment.append([document.source_file.name, document.page_number, document.person_name,
+                              document.person_identifier, document.organization_unit, item.item_number,
+                              item.equipment_type, item.model, item.quantity, item.serial_number,
+                              item.inventory_number, document.handover_date, document.handed_over_by,
+                              document.received_by, item.confidence])
+    for row in range(2, equipment.max_row + 1):
+        for column in (4, 10, 11):
+            equipment.cell(row, column).number_format = "@"
+    format_sheet(equipment)
+    human = workbook.create_sheet("Document")
+    for document in documents:
+        human.append(["REVERS"])
+        human.append(["Person", document.person_name])
+        human.append(["Person ID", document.person_identifier])
+        human.append(["Organization Unit", document.organization_unit])
+        human.append(["Handover Date", document.handover_date])
+        human.append(["Handed Over By", document.handed_over_by])
+        human.append(["Received By", document.received_by])
+        human.append([])
+        human.append(["Red. broj", "Vrsta računarske opreme", "Model", "Kol",
+                      "Serijski broj", "Inventarski broj"])
+        for item in document.equipment_items if include_empty_rows else document.populated_items():
+            human.append([item.item_number, item.equipment_type, item.model, item.quantity,
+                          item.serial_number, item.inventory_number])
+    format_sheet(human)
+    warnings = [(document, warning) for document in documents for warning in document.warnings]
+    if warnings:
+        review = workbook.create_sheet("Review")
+        review.append(["Page", "Row", "Field", "Extracted Value", "Confidence", "Warning", "Source"])
+        for document, warning in warnings:
+            review.append([warning.page_number, warning.row, warning.field, warning.value,
+                           warning.confidence, warning.message,
+                           warning.source.value if warning.source else ""])
+        format_sheet(review)
 
 
 def available_output_path(destination: Path) -> Path:

@@ -1,4 +1,4 @@
-from .conversion import ConversionOptions, ConversionResult, OCRMode
+from .conversion import ConversionOptions, ConversionResult, OCRMode, OutputMode
 from .geometry import BoundingBox
 from .ocr import OCRWord
 from .table import ExtractedTable, SourceType, TableCell
@@ -20,6 +20,7 @@ __all__ = [
     "ConversionResult",
     "ExtractedTable",
     "OCRMode",
+    "OutputMode",
     "OCRWord",
     "SourceType",
     "TableCell",
