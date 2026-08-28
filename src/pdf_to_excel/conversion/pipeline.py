@@ -52,8 +52,9 @@ class ConversionPipeline:
                         tables.append(ExtractedTable(
                             page_number, 1, assign_words_to_cells(result.grid, result.words), source))
                 elif options.output_mode != OutputMode.STRUCTURED:
-                    cleaned = [clean_table(table) for table in
-                               extract_digital_tables(options.input_path, page_number)]
+                    extracted = result.tables or extract_digital_tables(
+                        options.input_path, page_number)
+                    cleaned = [clean_table(table) for table in extracted]
                     tables.extend(table for table in cleaned if table.rows)
                 if progress:
                     progress(ProgressUpdate(completed + 1, len(pages),

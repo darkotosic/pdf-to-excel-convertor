@@ -8,8 +8,9 @@ import fitz
 import numpy as np
 
 from pdf_to_excel.config import Settings
+from pdf_to_excel.extraction.generic_ruled import extract_generic_ruled_tables
 from pdf_to_excel.models import (BoundingBox, DetectedGrid, DocumentWord, OCRMode,
-                                 PageType, ReversDocument, ConversionWarning)
+                                 PageType, ReversDocument, ConversionWarning, ExtractedTable)
 from pdf_to_excel.ocr.deskew import deskew
 from pdf_to_excel.ocr.orientation import correct_orientation
 from pdf_to_excel.ocr.preprocessing import (OCRProfile, preprocess,
@@ -34,6 +35,7 @@ class PageResult:
     grid: DetectedGrid | None = None
     grid_confidence: float = 0.0
     revers: ReversDocument | None = None
+    tables: list[ExtractedTable] = field(default_factory=list)
     warnings: list[ConversionWarning] = field(default_factory=list)
 
 
@@ -51,6 +53,8 @@ class PageProcessor:
         force_ocr = self.ocr_mode == OCRMode.ALWAYS
         use_native = self.ocr_mode != OCRMode.ALWAYS and analysis.page_type != PageType.SCANNED
         rendered: np.ndarray | None = None
+        raster_grids: list[DetectedGrid] = []
+        raster_width = raster_height = 0
         words = native if use_native else []
 
         # Native PDF points are the canonical DIGITAL coordinate system.
@@ -65,6 +69,7 @@ class PageProcessor:
             self._ensure_ocr()
             # All raster geometry and OCR use this same corrected coordinate system.
             oriented = deskew(correct_orientation(rendered))
+            raster_height, raster_width = oriented.shape[:2]
             rh, rv, horizontal_mask, vertical_mask = detect_ruled_lines(oriented)
             raster_grids = detect_grids(rh, rv)
             raster_grid, raster_confidence = select_revers_equipment_grid(
@@ -105,6 +110,9 @@ class PageProcessor:
             result.revers = extract_revers(self.source, page.number + 1, grid, words,
                                            template.confidence * grid_confidence)
             result.revers.warnings[:0] = result.warnings
+        elif raster_grids and (force_ocr or analysis.page_type == PageType.SCANNED):
+            result.tables = extract_generic_ruled_tables(
+                raster_grids, words, page.number + 1, raster_width, raster_height)
         return result
 
     def _extract_ocr(self, image: np.ndarray, page_number: int) -> list[DocumentWord]:
