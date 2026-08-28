@@ -2,6 +2,17 @@ from .conversion import ConversionOptions, ConversionResult, OCRMode
 from .geometry import BoundingBox
 from .ocr import OCRWord
 from .table import ExtractedTable, SourceType, TableCell
+from .document import (
+    ConversionStatus,
+    ConversionWarning,
+    DetectedGrid,
+    DetectedLine,
+    DocumentWord,
+    EquipmentItem,
+    PageType,
+    ReversDocument,
+    WordSource,
+)
 
 __all__ = [
     "BoundingBox",
@@ -12,4 +23,13 @@ __all__ = [
     "OCRWord",
     "SourceType",
     "TableCell",
+    "ConversionStatus",
+    "ConversionWarning",
+    "DetectedGrid",
+    "DetectedLine",
+    "DocumentWord",
+    "EquipmentItem",
+    "PageType",
+    "ReversDocument",
+    "WordSource",
 ]

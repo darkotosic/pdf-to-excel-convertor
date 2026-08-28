@@ -15,3 +15,21 @@ def cluster_rows(words: list[OCRWord]) -> list[list[OCRWord]]:
     for row in rows:
         row.sort(key=lambda w: w.bbox.x0)
     return rows
+
+
+def reconstruct_cell_text(words: list[OCRWord], preserve_line_breaks: bool = False) -> str:
+    """Join cell words in visual order while preserving wrapped identifiers."""
+    lines = cluster_rows(words)
+    rendered = [" ".join(word.text.strip() for word in line if word.text.strip()) for line in lines]
+    rendered = [line for line in rendered if line]
+    if preserve_line_breaks:
+        return "\n".join(rendered)
+    result = ""
+    for line in rendered:
+        if not result:
+            result = line
+        elif result.endswith("-"):
+            result += line
+        else:
+            result += " " + line
+    return result
