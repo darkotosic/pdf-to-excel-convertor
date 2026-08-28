@@ -10,7 +10,10 @@ import numpy as np
 from pdf_to_excel.config import Settings
 from pdf_to_excel.models import (BoundingBox, DetectedGrid, DocumentWord, OCRMode,
                                  PageType, ReversDocument)
-from pdf_to_excel.ocr.preprocessing import preprocess
+from pdf_to_excel.ocr.deskew import deskew
+from pdf_to_excel.ocr.orientation import correct_orientation
+from pdf_to_excel.ocr.preprocessing import (OCRProfile, preprocess,
+                                            remove_detected_table_lines)
 from pdf_to_excel.ocr.tesseract_engine import TesseractEngine
 from pdf_to_excel.pdf.analyzer import PageAnalysis, analyze_page
 from pdf_to_excel.pdf.native_extractor import extract_native_words, extract_vector_lines
@@ -58,10 +61,12 @@ class PageProcessor:
         needs_raster = force_ocr or analysis.page_type in (PageType.SCANNED, PageType.MIXED) or grid is None
         if needs_raster:
             rendered = render_page(page, self.dpi)
-            rh, rv, _, _ = detect_ruled_lines(rendered)
+            # All raster geometry and OCR use this same corrected coordinate system.
+            oriented = deskew(correct_orientation(rendered))
+            rh, rv, horizontal_mask, vertical_mask = detect_ruled_lines(oriented)
             raster_grids = detect_grids(rh, rv)
             raster_grid, raster_confidence = select_revers_equipment_grid(
-                raster_grids, rendered.shape[1], rendered.shape[0])
+                raster_grids, oriented.shape[1], oriented.shape[0])
             if (force_ocr or not use_native) and raster_grid is not None:
                 grid, grid_confidence = raster_grid, raster_confidence
             elif grid is None and raster_grid is not None:
@@ -69,10 +74,14 @@ class PageProcessor:
                                    page.rect.height / rendered.shape[0])
                 grid_confidence = raster_confidence
 
-        if force_ocr or analysis.page_type == PageType.SCANNED:
-            assert rendered is not None
-            words = self._extract_ocr(preprocess(rendered), page.number + 1)
-        elif analysis.page_type == PageType.MIXED and self.ocr_mode != OCRMode.NEVER:
+            if force_ocr or analysis.page_type == PageType.SCANNED:
+                # Geometry comes from the ruled original; OCR sees a rule-free copy.
+                ocr_image = remove_detected_table_lines(
+                    oriented, horizontal_mask, vertical_mask)
+                words = self._extract_ocr(
+                    preprocess(ocr_image, OCRProfile.CLEAN_SCAN), page.number + 1)
+
+        if analysis.page_type == PageType.MIXED and self.ocr_mode != OCRMode.NEVER and not force_ocr:
             assert rendered is not None
             ocr_words = self._extract_ocr(preprocess(rendered), page.number + 1)
             ocr_words = _scale_words(ocr_words, page.rect.width / rendered.shape[1],

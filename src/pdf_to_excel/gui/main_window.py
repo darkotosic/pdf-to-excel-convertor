@@ -34,23 +34,23 @@ class MainWindow(QMainWindow):
         root, form = QWidget(), QFormLayout()
         self.input_edit, self.output_edit = PdfDropEdit(), PdfDropEdit()
         self.input_edit.pdf_dropped.connect(self._source_changed)
-        form.addRow("PDF file", self._file_row(self.input_edit, self._choose_input))
-        form.addRow("Excel file", self._file_row(self.output_edit, self._choose_output))
+        form.addRow("PDF dokument", self._file_row(self.input_edit, self._choose_input))
+        form.addRow("Excel odredište", self._file_row(self.output_edit, self._choose_output))
         self.languages = {
             code: QCheckBox(label)
             for code, label in (
-                ("srp", "Serbian Cyrillic"),
-                ("srp_latn", "Serbian Latin"),
-                ("eng", "English"),
+                ("srp", "Srpski (ćirilica)"),
+                ("srp_latn", "Srpski (latinica)"),
+                ("eng", "Engleski"),
             )
         }
         language_row = QHBoxLayout()
         for checkbox in self.languages.values():
             checkbox.setChecked(True)
             language_row.addWidget(checkbox)
-        form.addRow("OCR languages", language_row)
-        form.addRow("OCR mode", QLabel("Automatic (per page)"))
-        self.progress, self.convert_button = QProgressBar(), QPushButton("Convert to Excel")
+        form.addRow("OCR jezici", language_row)
+        form.addRow("OCR režim", QLabel("Automatski (po stranici)"))
+        self.progress, self.convert_button = QProgressBar(), QPushButton("Pretvori u Excel")
         self.convert_button.clicked.connect(self._convert)
         form.addRow(self.progress)
         form.addRow(self.convert_button)
@@ -58,14 +58,14 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
 
     def _file_row(self, edit: PdfDropEdit, action):  # type: ignore[no-untyped-def]
-        layout, button = QHBoxLayout(), QPushButton("Browse…")
+        layout, button = QHBoxLayout(), QPushButton("Izaberi…")
         button.clicked.connect(action)
         layout.addWidget(edit)
         layout.addWidget(button)
         return layout
 
     def _choose_input(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Select PDF", "", "PDF files (*.pdf)")
+        path, _ = QFileDialog.getOpenFileName(self, "Izaberite PDF", "", "PDF dokumenti (*.pdf)")
         if path:
             self.input_edit.setText(path)
             self._source_changed(path)
@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
 
     def _choose_output(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Excel", self.output_edit.text(), "Excel (*.xlsx)"
+            self, "Sačuvajte Excel", self.output_edit.text(), "Excel (*.xlsx)"
         )
         if path:
             self.output_edit.setText(path if path.lower().endswith(".xlsx") else path + ".xlsx")
@@ -83,7 +83,7 @@ class MainWindow(QMainWindow):
     def _convert(self) -> None:
         languages = tuple(code for code, box in self.languages.items() if box.isChecked())
         if not languages:
-            QMessageBox.warning(self, APP_NAME, "Select at least one OCR language.")
+            QMessageBox.warning(self, APP_NAME, "Izaberite najmanje jedan OCR jezik.")
             return
         options = ConversionOptions(
             Path(self.input_edit.text()), Path(self.output_edit.text()), languages=languages
@@ -107,7 +107,7 @@ class MainWindow(QMainWindow):
     def _success(self, path: str) -> None:
         if (
             QMessageBox.question(
-                self, APP_NAME, f"Conversion complete.\n{path}\n\nOpen the workbook?"
+                self, APP_NAME, f"Pretvaranje je završeno.\n{path}\n\nOtvoriti radnu svesku?"
             )
             == QMessageBox.StandardButton.Yes
         ):
