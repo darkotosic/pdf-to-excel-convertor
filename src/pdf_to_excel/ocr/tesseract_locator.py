@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import shutil
 from pdf_to_excel.exceptions import DependencyError
+from pdf_to_excel.utils.paths import get_resource_path
 
 
 def locate_tesseract(configured: Path | None = None) -> Path:
@@ -13,7 +14,7 @@ def locate_tesseract(configured: Path | None = None) -> Path:
     candidates.extend(
         [
             Path(found) if found else None,
-            Path.cwd() / "vendor/tesseract/tesseract.exe",
+            get_resource_path("vendor/tesseract/tesseract.exe"),
             Path(os.environ.get("ProgramFiles", "C:/Program Files"))
             / "Tesseract-OCR/tesseract.exe",
         ]

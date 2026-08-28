@@ -7,7 +7,7 @@ import json
 class Settings(BaseModel):
     tesseract_cmd: Path | None = None
     dpi: int = Field(default=300, ge=150, le=600)
-    confidence_threshold: float = Field(default=35.0, ge=0, le=100)
+    confidence_threshold: float = Field(default=0.35, ge=0, le=1)
 
     @classmethod
     def load(cls) -> "Settings":

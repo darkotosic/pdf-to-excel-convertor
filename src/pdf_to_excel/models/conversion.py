@@ -10,6 +10,12 @@ class OCRMode(StrEnum):
     NEVER = "never"
 
 
+class OutputMode(StrEnum):
+    STRUCTURED = "structured"
+    PRESERVE_TABLES = "preserve_tables"
+    BOTH = "both"
+
+
 @dataclass(frozen=True, slots=True)
 class ConversionOptions:
     input_path: Path
@@ -18,6 +24,8 @@ class ConversionOptions:
     ocr_mode: OCRMode = OCRMode.AUTOMATIC
     languages: tuple[str, ...] = ("srp", "srp_latn", "eng")
     dpi: int = 300
+    output_mode: OutputMode = OutputMode.BOTH
+    include_empty_template_rows: bool = False
 
 
 @dataclass(slots=True)
@@ -25,3 +33,4 @@ class ConversionResult:
     output_path: Path
     tables: list[ExtractedTable] = field(default_factory=list)
     pages_processed: int = 0
+    structured_documents: list[object] = field(default_factory=list)
