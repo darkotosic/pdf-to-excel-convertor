@@ -1,5 +1,5 @@
 #define AppName "PDF to Excel Converter"
-#define AppVersion "1.0.0"
+#define AppVersion "0.8.0"
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVersion}

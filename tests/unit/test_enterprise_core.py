@@ -4,7 +4,14 @@ import cv2
 import numpy as np
 
 from pdf_to_excel.excel.exporter import available_output_path
-from pdf_to_excel.models import BoundingBox, DetectedLine, EquipmentItem, OCRWord
+from pdf_to_excel.models import (
+    BoundingBox,
+    DetectedLine,
+    DocumentWord,
+    EquipmentItem,
+    OCRWord,
+    WordSource,
+)
 from pdf_to_excel.ocr.artifacts import is_ocr_table_artifact
 from pdf_to_excel.ocr.deskew import estimate_skew_angle
 from pdf_to_excel.ocr.preprocessing import remove_detected_table_lines
@@ -68,8 +75,7 @@ def test_output_collision(tmp_path: Path) -> None:
 
 def test_ocr_table_artifacts_are_field_aware() -> None:
     for value in ("|", "||", "_", "__", "__|", "|I"):
-        assert is_ocr_table_artifact(
-            value, field="model", confidence=0.2, touches_cell_border=True)
+        assert is_ocr_table_artifact(value, field="model", confidence=0.2, touches_cell_border=True)
     assert not is_ocr_table_artifact("-12", field="quantity", confidence=0.4)
     assert not is_ocr_table_artifact("AB-12", field="serial_number", confidence=0.4)
 
@@ -77,7 +83,7 @@ def test_ocr_table_artifacts_are_field_aware() -> None:
 def test_line_removal_preserves_text() -> None:
     image = np.full((100, 240), 255, np.uint8)
     cv2.line(image, (5, 50), (235, 50), 0, 2)
-    cv2.putText(image, "Model", (70, 35), cv2.FONT_HERSHEY_SIMPLEX, .7, 0, 2)
+    cv2.putText(image, "Model", (70, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 0, 2)
     _, _, horizontal_mask, vertical_mask = detect_ruled_lines(image)
     cleaned = remove_detected_table_lines(image, horizontal_mask, vertical_mask)
     assert cleaned[50, 20] > 240
@@ -89,3 +95,29 @@ def test_deskew_uses_horizontal_rules() -> None:
     for y in (50, 100, 150):
         cv2.line(image, (20, y), (400, y + 13), 0, 2)
     assert 1.0 < estimate_skew_angle(image) < 3.0
+
+
+def test_generic_grid_scoring_rejects_decorative_box() -> None:
+    from pdf_to_excel.extraction.generic_ruled import score_grid_candidate
+    from pdf_to_excel.models import DetectedGrid
+
+    decorative = DetectedGrid(BoundingBox(10, 10, 30, 30), (10, 30), (10, 30))
+    table = DetectedGrid(
+        BoundingBox(10, 10, 310, 170),
+        (10, 50, 90, 130, 170),
+        (10, 110, 210, 310),
+    )
+    words = [
+        DocumentWord(
+            f"value-{row}-{column}",
+            BoundingBox(20 + column * 100, 20 + row * 40, 90 + column * 100, 40 + row * 40),
+            0.9,
+            1,
+            WordSource.OCR,
+        )
+        for row in range(4)
+        for column in range(3)
+    ]
+
+    assert score_grid_candidate(decorative, words, 400, 300) == 0
+    assert score_grid_candidate(table, words, 400, 300) >= 0.45
