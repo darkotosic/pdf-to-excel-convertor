@@ -1,8 +1,14 @@
 from pathlib import Path
 
+import fitz
+import pytest
+
 from openpyxl import load_workbook
 
 from pdf_to_excel.conversion.pipeline import ConversionPipeline
+from pdf_to_excel.pdf.renderer import render_page_safe
+from fixture_factory import create_clean_scanned_ruled_pdf
+
 from pdf_to_excel.models import (
     BoundingBox,
     ConversionOptions,
@@ -47,7 +53,7 @@ def test_generic_scanned_ruled_table_flows_through_real_pipeline(tmp_path, monke
     )
     monkeypatch.setattr("pdf_to_excel.conversion.page_processor.deskew", lambda image: image)
 
-    fixture = Path(__file__).parents[1] / "fixtures" / "generic_scanned_ruled.pdf"
+    fixture = create_clean_scanned_ruled_pdf(tmp_path / "generic_scanned_ruled_clean.pdf")
     output = tmp_path / "generic-scanned.xlsx"
     result = ConversionPipeline().convert(
         ConversionOptions(
@@ -68,3 +74,11 @@ def test_generic_scanned_ruled_table_flows_through_real_pipeline(tmp_path, monke
     assert sheet.max_row == 4
     assert sheet.max_column == 3
     assert sheet["C2"].value == "0641234567"
+
+
+def test_malformed_icc_scan_is_not_accepted_as_blank_content(tmp_path) -> None:
+    from pdf_to_excel.exceptions import PdfRenderError
+
+    fixture = Path(__file__).parents[1] / "fixtures" / "malformed_icc_scan.pdf"
+    with fitz.open(fixture) as document, pytest.raises(PdfRenderError, match="suspicious"):
+        render_page_safe(document[0], dpi=100)

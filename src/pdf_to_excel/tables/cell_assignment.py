@@ -23,8 +23,10 @@ def assign_words_to_cells(grid: DetectedGrid, words: list[DocumentWord]) -> list
         candidates: list[tuple[float, int, int]] = []
         for row, row_boxes in enumerate(boxes):
             for column, box in enumerate(row_boxes):
-                centered = (box.x0 <= word.bbox.center_x <= box.x1 and
-                            box.y0 <= word.bbox.center_y <= box.y1)
+                centered = (
+                    box.x0 <= word.bbox.center_x <= box.x1
+                    and box.y0 <= word.bbox.center_y <= box.y1
+                )
                 overlap = box.overlap_ratio(word.bbox)
                 if centered or overlap:
                     candidates.append((2.0 + overlap if centered else overlap, row, column))
@@ -49,8 +51,14 @@ def assign_words_to_cells(grid: DetectedGrid, words: list[DocumentWord]) -> list
 def _reading_order(words: list[DocumentWord], tolerance: float) -> list[DocumentWord]:
     lines: list[list[DocumentWord]] = []
     for word in sorted(words, key=lambda item: (item.bbox.center_y, item.bbox.x0)):
-        line = next((line for line in lines
-                     if abs(line[0].bbox.center_y - word.bbox.center_y) <= tolerance), None)
+        line = next(
+            (
+                line
+                for line in lines
+                if abs(line[0].bbox.center_y - word.bbox.center_y) <= tolerance
+            ),
+            None,
+        )
         if line is None:
             lines.append([word])
         else:

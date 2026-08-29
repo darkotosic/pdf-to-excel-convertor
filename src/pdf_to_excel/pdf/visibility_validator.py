@@ -7,12 +7,17 @@ from pdf_to_excel.models import BoundingBox
 
 
 def pdf_bbox_to_pixels(
-    bbox: BoundingBox, page_width: float, page_height: float,
-    image_width: int, image_height: int,
+    bbox: BoundingBox,
+    page_width: float,
+    page_height: float,
+    image_width: int,
+    image_height: int,
 ) -> BoundingBox:
     return BoundingBox(
-        bbox.x0 * image_width / page_width, bbox.y0 * image_height / page_height,
-        bbox.x1 * image_width / page_width, bbox.y1 * image_height / page_height,
+        bbox.x0 * image_width / page_width,
+        bbox.y0 * image_height / page_height,
+        bbox.x1 * image_width / page_width,
+        bbox.y1 * image_height / page_height,
     )
 
 
@@ -33,9 +38,14 @@ def has_visible_foreground(
     foreground = 0
     for index in range(1, components):
         component_width, component_height, area = (
-            stats[index, cv2.CC_STAT_WIDTH], stats[index, cv2.CC_STAT_HEIGHT],
+            stats[index, cv2.CC_STAT_WIDTH],
+            stats[index, cv2.CC_STAT_HEIGHT],
             stats[index, cv2.CC_STAT_AREA],
         )
-        if area >= 2 and component_width < region.shape[1] * 0.9 and component_height < region.shape[0] * 0.9:
+        if (
+            area >= 2
+            and component_width < region.shape[1] * 0.9
+            and component_height < region.shape[0] * 0.9
+        ):
             foreground += int(area)
     return bool(foreground / max(1, region.size) >= minimum_ratio)

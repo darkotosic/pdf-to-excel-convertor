@@ -33,6 +33,21 @@ class WarningSeverity(StrEnum):
     CRITICAL = "critical"
 
 
+class WarningCode(StrEnum):
+    RENDER_FALLBACK_USED = "RENDER_FALLBACK_USED"
+    RENDER_FAILED = "RENDER_FAILED"
+    PHANTOM_TEXT_SUPPRESSED = "PHANTOM_TEXT_SUPPRESSED"
+    NATIVE_OCR_DISAGREEMENT = "NATIVE_OCR_DISAGREEMENT"
+    OCR_LOW_CONFIDENCE = "OCR_LOW_CONFIDENCE"
+    OCR_AMBIGUOUS_IDENTIFIER = "OCR_AMBIGUOUS_IDENTIFIER"
+    INVALID_DATE = "INVALID_DATE"
+    METADATA_UNCERTAIN = "METADATA_UNCERTAIN"
+    FOOTER_UNCERTAIN = "FOOTER_UNCERTAIN"
+    TABLE_LOW_CONFIDENCE = "TABLE_LOW_CONFIDENCE"
+    PAGE_SKIPPED = "PAGE_SKIPPED"
+    UNSPECIFIED = "UNSPECIFIED"
+
+
 class ConversionStatus(StrEnum):
     SUCCESS = "success"
     SUCCESS_WITH_WARNINGS = "success_with_warnings"
@@ -110,7 +125,7 @@ class ConversionWarning:
     value: str = ""
     confidence: float | None = None
     source: WordSource | None = None
-    code: str = "UNSPECIFIED"
+    code: WarningCode = WarningCode.UNSPECIFIED
     severity: WarningSeverity = WarningSeverity.WARNING
 
 

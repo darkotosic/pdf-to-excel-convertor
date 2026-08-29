@@ -45,7 +45,9 @@ def _mask_lines(mask: np.ndarray, horizontal: bool, minimum: float) -> list[Dete
     return result
 
 
-def merge_collinear(lines: list[DetectedLine], tolerance: float = 3.0, gap: float = 12.0) -> list[DetectedLine]:
+def merge_collinear(
+    lines: list[DetectedLine], tolerance: float = 3.0, gap: float = 12.0
+) -> list[DetectedLine]:
     """Merge fragments on nearly identical axes and discard duplicates."""
     merged: list[DetectedLine] = []
     for line in sorted(lines, key=lambda item: (item.start_y, item.start_x)):
@@ -54,23 +56,31 @@ def merge_collinear(lines: list[DetectedLine], tolerance: float = 3.0, gap: floa
                 continue
             if line.horizontal:
                 same_axis = abs(line.start_y - current.start_y) <= tolerance
-                touches = line.start_x <= current.end_x + gap and line.end_x >= current.start_x - gap
+                touches = (
+                    line.start_x <= current.end_x + gap and line.end_x >= current.start_x - gap
+                )
                 if same_axis and touches:
                     y = (line.start_y + current.start_y) / 2
                     merged[index] = DetectedLine(
-                        min(line.start_x, current.start_x), y,
-                        max(line.end_x, current.end_x), y,
+                        min(line.start_x, current.start_x),
+                        y,
+                        max(line.end_x, current.end_x),
+                        y,
                         max(line.thickness, current.thickness),
                     )
                     break
             else:
                 same_axis = abs(line.start_x - current.start_x) <= tolerance
-                touches = line.start_y <= current.end_y + gap and line.end_y >= current.start_y - gap
+                touches = (
+                    line.start_y <= current.end_y + gap and line.end_y >= current.start_y - gap
+                )
                 if same_axis and touches:
                     x = (line.start_x + current.start_x) / 2
                     merged[index] = DetectedLine(
-                        x, min(line.start_y, current.start_y),
-                        x, max(line.end_y, current.end_y),
+                        x,
+                        min(line.start_y, current.start_y),
+                        x,
+                        max(line.end_y, current.end_y),
                         max(line.thickness, current.thickness),
                     )
                     break

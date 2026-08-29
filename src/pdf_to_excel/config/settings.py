@@ -8,6 +8,14 @@ class Settings(BaseModel):
     tesseract_cmd: Path | None = None
     dpi: int = Field(default=300, ge=150, le=600)
     confidence_threshold: float = Field(default=0.35, ge=0, le=1)
+    page_ocr_timeout_seconds: float = Field(default=120, gt=0)
+    retry_ocr_timeout_seconds: float = Field(default=20, gt=0)
+    osd_timeout_seconds: float = Field(default=15, gt=0)
+    max_pdf_size_mb: int = Field(default=250, gt=0)
+    max_pages: int = Field(default=500, gt=0)
+    max_render_pixels: int = Field(default=100_000_000, gt=0)
+    max_dimension: int = Field(default=20_000, gt=0)
+    max_dpi: int = Field(default=400, ge=150, le=1200)
 
     @classmethod
     def load(cls) -> "Settings":

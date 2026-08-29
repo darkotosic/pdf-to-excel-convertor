@@ -16,10 +16,18 @@ def normalize_revers_text(text: str) -> str:
 class ReversTemplate:
     name = "REVERS"
     anchors = (
-        "revers", "dole navedena oprema", "red. broj", "vrsta računarske opreme",
-        "model", "kol", "serijski broj", "inventarski broj",
-        "zaključno sa rednim brojem", "datum predaje opreme",
-        "opremu predao", "opremu primio",
+        "revers",
+        "dole navedena oprema",
+        "red. broj",
+        "vrsta računarske opreme",
+        "model",
+        "kol",
+        "serijski broj",
+        "inventarski broj",
+        "zaključno sa rednim brojem",
+        "datum predaje opreme",
+        "opremu predao",
+        "opremu primio",
     )
 
     def detect(self, text: str) -> TemplateMatch:

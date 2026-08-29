@@ -39,11 +39,20 @@ def analyze_page(page: fitz.Page) -> PageAnalysis:
     digital_signal = len(text) >= 20 and len(words) >= 4 and usable_ratio >= 0.55
     scan_signal = image_coverage >= 0.45
     page_type = (
-        PageType.MIXED if digital_signal and scan_signal
-        else PageType.DIGITAL if digital_signal
+        PageType.MIXED
+        if digital_signal and scan_signal
+        else PageType.DIGITAL
+        if digital_signal
         else PageType.SCANNED
     )
     return PageAnalysis(
-        page.number + 1, len(text), len(words), coverage, len(images), image_coverage,
-        len(page.get_drawings()), usable_ratio, page_type,
+        page.number + 1,
+        len(text),
+        len(words),
+        coverage,
+        len(images),
+        image_coverage,
+        len(page.get_drawings()),
+        usable_ratio,
+        page_type,
     )
