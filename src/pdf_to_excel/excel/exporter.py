@@ -29,13 +29,14 @@ def export_tables(
         workbook.remove(active)
     documents = documents or []
     if not tables and not documents:
-        workbook.create_sheet("No tables found").append(["No tabular content was detected."])
+        workbook.create_sheet("Nema tabela").append(["Nije pronađen tabelarni sadržaj."])
     if documents and output_mode in (OutputMode.STRUCTURED, OutputMode.BOTH):
         _add_structured_sheets(workbook, documents, include_empty_rows)
     for table in tables if output_mode in (OutputMode.PRESERVE_TABLES, OutputMode.BOTH) else []:
         sheet = workbook.create_sheet(
             _unique_title(
-                workbook.sheetnames, f"Page {table.page_number} Table {table.table_index}"
+                workbook.sheetnames,
+                f"Stranica {table.page_number} Tabela {table.table_index}",
             )
         )
         for row in table.rows:
@@ -52,7 +53,7 @@ def export_tables(
         verified = load_workbook(temporary, read_only=True)
         try:
             if not verified.sheetnames:
-                raise ValueError("Generated workbook contains no sheets")
+                raise ValueError("Napravljena radna sveska ne sadrži nijedan list")
         finally:
             verified.close()
         os.replace(temporary, destination)
@@ -64,24 +65,24 @@ def export_tables(
 def _add_structured_sheets(
     workbook: Workbook, documents: list[ReversDocument], include_empty_rows: bool
 ) -> None:
-    equipment = workbook.create_sheet("Equipment")
+    equipment = workbook.create_sheet("Oprema")
     equipment.append(
         [
-            "Source File",
-            "Page",
-            "Person",
-            "Person ID",
-            "Organization Unit",
-            "Item No.",
-            "Equipment Type",
+            "Izvorna datoteka",
+            "Stranica",
+            "Osoba",
+            "JMBG",
+            "Organizaciona jedinica",
+            "Redni broj",
+            "Vrsta opreme",
             "Model",
-            "Quantity",
-            "Serial Number",
-            "Inventory Number",
-            "Handover Date",
-            "Handed Over By",
-            "Received By",
-            "Confidence",
+            "Količina",
+            "Serijski broj",
+            "Inventarski broj",
+            "Datum primopredaje",
+            "Opremu predao",
+            "Opremu primio",
+            "Pouzdanost",
         ]
     )
     for document in documents:
@@ -110,15 +111,15 @@ def _add_structured_sheets(
         for column in (4, 10, 11):
             equipment.cell(row, column).number_format = "@"
     format_sheet(equipment)
-    human = workbook.create_sheet("Document")
+    human = workbook.create_sheet("Dokument")
     for document in documents:
         human.append(["REVERS"])
-        human.append(["Person", document.person_name])
-        human.append(["Person ID", document.person_identifier])
-        human.append(["Organization Unit", document.organization_unit])
-        human.append(["Handover Date", document.handover_date])
-        human.append(["Handed Over By", document.handed_over_by])
-        human.append(["Received By", document.received_by])
+        human.append(["Osoba", document.person_name])
+        human.append(["JMBG", document.person_identifier])
+        human.append(["Organizaciona jedinica", document.organization_unit])
+        human.append(["Datum primopredaje", document.handover_date])
+        human.append(["Opremu predao", document.handed_over_by])
+        human.append(["Opremu primio", document.received_by])
         human.append([])
         human.append(
             [
@@ -144,18 +145,18 @@ def _add_structured_sheets(
     format_sheet(human)
     warnings = [(document, warning) for document in documents for warning in document.warnings]
     if warnings:
-        review = workbook.create_sheet("Review")
+        review = workbook.create_sheet("Pregled")
         review.append(
             [
-                "Severity",
-                "Warning Code",
-                "Page",
-                "Row",
-                "Field",
-                "Extracted Value",
-                "Confidence",
-                "Source",
-                "Warning",
+                "Ozbiljnost",
+                "Šifra upozorenja",
+                "Stranica",
+                "Red",
+                "Polje",
+                "Izdvojena vrednost",
+                "Pouzdanost",
+                "Izvor",
+                "Upozorenje",
             ]
         )
         for document, warning in warnings:

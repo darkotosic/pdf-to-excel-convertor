@@ -47,11 +47,11 @@ class ConversionPipeline:
         size_mb = options.input_path.stat().st_size / (1024 * 1024)
         if size_mb > self.settings.max_pdf_size_mb:
             raise ResourceLimitError(
-                f"PDF is {size_mb:.1f} MB; limit is {self.settings.max_pdf_size_mb} MB."
+                f"PDF ima {size_mb:.1f} MB; ograničenje je {self.settings.max_pdf_size_mb} MB."
             )
         if options.dpi > self.settings.max_dpi:
             raise ResourceLimitError(
-                f"Requested DPI {options.dpi} exceeds limit {self.settings.max_dpi}."
+                f"Zahtevani DPI {options.dpi} premašuje ograničenje {self.settings.max_dpi}."
             )
         try:
             document = fitz.open(options.input_path)
@@ -69,7 +69,8 @@ class ConversionPipeline:
                 raise PasswordProtectedPdfError("PDF dokument zahteva lozinku.")
             if document.page_count > self.settings.max_pages:
                 raise ResourceLimitError(
-                    f"PDF has {document.page_count} pages; limit is {self.settings.max_pages}."
+                    f"PDF ima {document.page_count} stranica; ograničenje je "
+                    f"{self.settings.max_pages}."
                 )
             pages = tuple(options.pages or range(1, document.page_count + 1))
             total_pages = len(pages)
