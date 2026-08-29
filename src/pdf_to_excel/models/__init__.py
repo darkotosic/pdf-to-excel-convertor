@@ -5,6 +5,7 @@ from .table import ExtractedTable, SourceType, TableCell
 from .document import (
     ConversionStatus,
     ConversionWarning,
+    ExtractionSource,
     DetectedGrid,
     DetectedLine,
     DocumentWord,
@@ -12,6 +13,7 @@ from .document import (
     PageType,
     ReversDocument,
     WordSource,
+    WarningSeverity,
 )
 
 __all__ = [
@@ -26,6 +28,7 @@ __all__ = [
     "TableCell",
     "ConversionStatus",
     "ConversionWarning",
+    "ExtractionSource",
     "DetectedGrid",
     "DetectedLine",
     "DocumentWord",
@@ -33,4 +36,5 @@ __all__ = [
     "PageType",
     "ReversDocument",
     "WordSource",
+    "WarningSeverity",
 ]

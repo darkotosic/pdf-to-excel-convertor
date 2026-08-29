@@ -37,3 +37,10 @@ class ConversionResult:
     pages_processed: int = 0
     structured_documents: list[object] = field(default_factory=list)
     warnings: list[ConversionWarning] = field(default_factory=list)
+    total_pages: int = 0
+    native_pages: int = 0
+    ocr_pages: int = 0
+    mixed_pages: int = 0
+    tables_detected: int = 0
+    records_exported: int = 0
+    duration_seconds: float = 0.0
