@@ -70,7 +70,7 @@ def test_generic_scanned_ruled_table_flows_through_real_pipeline(tmp_path, monke
     assert len(result.tables[0].rows) == 4
     assert len(result.tables[0].rows[0]) == 3
     assert [cell.text for cell in result.tables[0].rows[0]] == ["Name", "City", "Phone"]
-    sheet = load_workbook(result.output_path)["Page 1 Table 1"]
+    sheet = load_workbook(result.output_path)["Stranica 1 Tabela 1"]
     assert sheet.max_row == 4
     assert sheet.max_column == 3
     assert sheet["C2"].value == "0641234567"
