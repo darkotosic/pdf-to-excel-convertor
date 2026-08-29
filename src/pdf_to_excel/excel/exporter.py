@@ -36,8 +36,8 @@ def export_tables(tables: list[ExtractedTable], destination: Path,
         for row in table.rows:
             values = []
             for cell in row:
-                protected = safe_excel_text(cell.text)
-                values.append(protected if protected != cell.text else infer_value(cell.text))
+                inferred = infer_value(cell.text)
+                values.append(inferred if not isinstance(inferred, str) else safe_excel_text(inferred))
             sheet.append(values)
         format_sheet(sheet)
     try:
@@ -92,11 +92,12 @@ def _add_structured_sheets(workbook: Workbook, documents: list[ReversDocument],
     warnings = [(document, warning) for document in documents for warning in document.warnings]
     if warnings:
         review = workbook.create_sheet("Review")
-        review.append(["Page", "Row", "Field", "Extracted Value", "Confidence", "Warning", "Source"])
+        review.append(["Severity", "Warning Code", "Page", "Row", "Field", "Extracted Value",
+                       "Confidence", "Source", "Warning"])
         for document, warning in warnings:
-            review.append([warning.page_number, warning.row, warning.field, warning.value,
-                           warning.confidence, warning.message,
-                           warning.source.value if warning.source else ""])
+            review.append([warning.severity.value, warning.code, warning.page_number, warning.row,
+                           warning.field, warning.value, warning.confidence,
+                           warning.source.value if warning.source else "", warning.message])
         format_sheet(review)
 
 

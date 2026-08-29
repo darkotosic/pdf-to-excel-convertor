@@ -10,7 +10,8 @@ import numpy as np
 from pdf_to_excel.config import Settings
 from pdf_to_excel.extraction.generic_ruled import extract_generic_ruled_tables
 from pdf_to_excel.models import (BoundingBox, DetectedGrid, DocumentWord, OCRMode,
-                                 PageType, ReversDocument, ConversionWarning, ExtractedTable)
+                                 PageType, ReversDocument, ConversionWarning, ExtractedTable,
+                                 ExtractionSource)
 from pdf_to_excel.ocr.deskew import deskew
 from pdf_to_excel.ocr.orientation import correct_orientation
 from pdf_to_excel.ocr.preprocessing import (OCRProfile, preprocess,
@@ -18,7 +19,7 @@ from pdf_to_excel.ocr.preprocessing import (OCRProfile, preprocess,
 from pdf_to_excel.ocr.tesseract_engine import TesseractEngine
 from pdf_to_excel.pdf.analyzer import PageAnalysis, analyze_page
 from pdf_to_excel.pdf.native_extractor import extract_native_words, extract_vector_lines
-from pdf_to_excel.pdf.renderer import render_page
+from pdf_to_excel.pdf.renderer import render_page_safe
 from pdf_to_excel.pdf.visibility_validator import has_visible_foreground, pdf_bbox_to_pixels
 from pdf_to_excel.tables.grid_detector import detect_grids
 from pdf_to_excel.tables.line_detector import detect_ruled_lines, merge_collinear
@@ -37,6 +38,7 @@ class PageResult:
     revers: ReversDocument | None = None
     tables: list[ExtractedTable] = field(default_factory=list)
     warnings: list[ConversionWarning] = field(default_factory=list)
+    extraction_source: ExtractionSource = ExtractionSource.NATIVE
 
 
 class PageProcessor:
@@ -56,6 +58,12 @@ class PageProcessor:
         raster_grids: list[DetectedGrid] = []
         raster_width = raster_height = 0
         words = native if use_native else []
+        render_warnings: list[ConversionWarning] = []
+
+        def render() -> np.ndarray:
+            outcome = render_page_safe(page, self.dpi)
+            render_warnings.extend(outcome.warnings)
+            return outcome.image
 
         # Native PDF points are the canonical DIGITAL coordinate system.
         horizontal, vertical = extract_vector_lines(page)
@@ -64,7 +72,7 @@ class PageProcessor:
 
         needs_raster = force_ocr or analysis.page_type in (PageType.SCANNED, PageType.MIXED) or grid is None
         if needs_raster:
-            rendered = render_page(page, self.dpi)
+            rendered = render()
             # Configure pytesseract before orientation detection (which invokes OSD).
             self._ensure_ocr()
             # All raster geometry and OCR use this same corrected coordinate system.
@@ -98,11 +106,21 @@ class PageProcessor:
             merge_warnings = []
 
         template = native_match or detect_template(" ".join(word.text for word in words))
-        result = PageResult(analysis, template, words, grid, grid_confidence)
+        if force_ocr or analysis.page_type == PageType.SCANNED:
+            extraction_source = ExtractionSource.OCR
+        elif analysis.page_type == PageType.MIXED and self.ocr_mode != OCRMode.NEVER:
+            extraction_source = ExtractionSource.HYBRID
+        else:
+            extraction_source = ExtractionSource.NATIVE
+        result = PageResult(
+            analysis, template, words, grid, grid_confidence,
+            extraction_source=extraction_source,
+        )
+        result.warnings.extend(render_warnings)
         result.warnings.extend(merge_warnings)
         if template and template.name == "REVERS" and grid is not None:
             if rendered is None:
-                rendered = render_page(page, self.dpi)
+                rendered = render()
             if use_native and not force_ocr:
                 words = _suppress_phantoms(words, grid, rendered, page.rect.width, page.rect.height,
                                            result.warnings)
@@ -110,6 +128,7 @@ class PageProcessor:
             result.revers = extract_revers(self.source, page.number + 1, grid, words,
                                            template.confidence * grid_confidence)
             result.revers.warnings[:0] = result.warnings
+            result.warnings = list(result.revers.warnings)
         elif raster_grids and (force_ocr or analysis.page_type == PageType.SCANNED):
             result.tables = extract_generic_ruled_tables(
                 raster_grids, words, page.number + 1, raster_width, raster_height)
@@ -151,7 +170,8 @@ def merge_document_words(native: list[DocumentWord], ocr: list[DocumentWord],
         if similarity < .7:
             warnings.append(ConversionWarning(
                 "Native/OCR disagreement", page_number, value=candidate.text,
-                confidence=candidate.confidence, source=candidate.source))
+                confidence=candidate.confidence, source=candidate.source,
+                code="NATIVE_OCR_DISAGREEMENT"))
             if candidate.confidence > best.confidence:
                 merged.remove(best)
                 merged.append(candidate)
@@ -170,7 +190,8 @@ def _suppress_phantoms(words: list[DocumentWord], grid: DetectedGrid, image: np.
         if suspicious and not has_visible_foreground(image, pixel_bbox):
             warnings.append(ConversionWarning(
                 "Phantom native text suppressed", word.page_number, value=word.text,
-                confidence=word.confidence, source=word.source))
+                confidence=word.confidence, source=word.source,
+                code="PHANTOM_TEXT_SUPPRESSED"))
             continue
         result.append(word)
     return result

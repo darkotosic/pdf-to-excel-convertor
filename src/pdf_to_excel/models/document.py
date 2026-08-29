@@ -19,6 +19,20 @@ class WordSource(StrEnum):
     OCR = "ocr"
 
 
+class ExtractionSource(StrEnum):
+    """The source that actually supplied a page's extracted words."""
+
+    NATIVE = "native"
+    OCR = "ocr"
+    HYBRID = "hybrid"
+
+
+class WarningSeverity(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
 class ConversionStatus(StrEnum):
     SUCCESS = "success"
     SUCCESS_WITH_WARNINGS = "success_with_warnings"
@@ -96,6 +110,8 @@ class ConversionWarning:
     value: str = ""
     confidence: float | None = None
     source: WordSource | None = None
+    code: str = "UNSPECIFIED"
+    severity: WarningSeverity = WarningSeverity.WARNING
 
 
 @dataclass(slots=True)
