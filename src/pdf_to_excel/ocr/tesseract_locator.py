@@ -9,12 +9,12 @@ def locate_tesseract(configured: Path | None = None) -> Path:
     candidates = [
         configured,
         Path(os.environ["TESSERACT_CMD"]) if os.getenv("TESSERACT_CMD") else None,
+        get_resource_path("vendor/tesseract/tesseract.exe"),
     ]
     found = shutil.which("tesseract")
     candidates.extend(
         [
             Path(found) if found else None,
-            get_resource_path("vendor/tesseract/tesseract.exe"),
             Path(os.environ.get("ProgramFiles", "C:/Program Files"))
             / "Tesseract-OCR/tesseract.exe",
         ]

@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import numpy as np
 import pytesseract
 from pytesseract import Output
@@ -8,6 +9,17 @@ from pdf_to_excel.text.normalizer import normalize_text
 from .tesseract_locator import locate_tesseract
 
 
+def configure_tesseract(command: Path | None = None) -> Path:
+    """Configure pytesseract, including private trained data for a bundled runtime."""
+    executable = locate_tesseract(command)
+    pytesseract.pytesseract.tesseract_cmd = str(executable)
+    tessdata = executable.parent / "tessdata"
+    if executable.name.casefold() == "tesseract.exe" and tessdata.is_dir():
+        # Tesseract 5 accepts the tessdata directory itself as TESSDATA_PREFIX.
+        os.environ["TESSDATA_PREFIX"] = str(tessdata)
+    return executable
+
+
 class TesseractEngine:
     def __init__(
         self,
@@ -15,7 +27,7 @@ class TesseractEngine:
         confidence_threshold: float = 0.35,
         timeout_seconds: float = 120,
     ) -> None:
-        pytesseract.pytesseract.tesseract_cmd = str(locate_tesseract(command))
+        configure_tesseract(command)
         self.confidence_threshold = confidence_threshold
         self.timeout_seconds = timeout_seconds
 

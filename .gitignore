@@ -6,7 +6,7 @@ __pycache__/
 .ruff_cache/
 build/
 dist/*
-*.spec
+release/*
+!release/README.md
 *.xlsx
 *.log
-

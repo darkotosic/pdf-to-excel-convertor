@@ -1,7 +1,8 @@
 $ErrorActionPreference = "Stop"
-$python = Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe"
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$python = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $python)) { throw "Missing .venv. Run scripts\setup_dev.ps1 first." }
-& $python -m ruff check .
-& $python -m ruff format --check .
-& $python -m mypy src
-& $python -m pytest --cov=pdf_to_excel --cov-report=term-missing --cov-fail-under=85
+& $python -m ruff check $Root
+& $python -m ruff format --check $Root
+& $python -m mypy (Join-Path $Root "src")
+& $python -m pytest (Join-Path $Root "tests") --cov=pdf_to_excel --cov-report=term-missing --cov-fail-under=85
