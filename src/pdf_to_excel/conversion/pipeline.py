@@ -4,10 +4,22 @@ from time import monotonic
 import fitz
 
 from pdf_to_excel.config import Settings
-from pdf_to_excel.exceptions import ConversionError
+from pdf_to_excel.exceptions import (
+    ConversionError,
+    InvalidPdfError,
+    PasswordProtectedPdfError,
+    ResourceLimitError,
+)
 from pdf_to_excel.excel.exporter import export_tables
-from pdf_to_excel.models import (ConversionOptions, ConversionResult, ConversionStatus,
-                                 ConversionWarning, ExtractedTable, OutputMode, SourceType)
+from pdf_to_excel.models import (
+    ConversionOptions,
+    ConversionResult,
+    ConversionStatus,
+    ConversionWarning,
+    ExtractedTable,
+    OutputMode,
+    SourceType,
+)
 from pdf_to_excel.models import ExtractionSource
 from pdf_to_excel.models import ReversDocument
 from pdf_to_excel.pdf.digital_extractor import extract_digital_tables
@@ -19,33 +31,60 @@ from .progress import ProgressCallback, ProgressUpdate
 
 class ConversionPipeline:
     """Stream pages through PageProcessor and orchestrate one atomic export."""
+
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or Settings.load()
 
-    def convert(self, options: ConversionOptions, progress: ProgressCallback | None = None,
-                cancelled: Callable[[], bool] = lambda: False) -> ConversionResult:
+    def convert(
+        self,
+        options: ConversionOptions,
+        progress: ProgressCallback | None = None,
+        cancelled: Callable[[], bool] = lambda: False,
+    ) -> ConversionResult:
         started = monotonic()
         if not options.input_path.is_file() or options.input_path.suffix.lower() != ".pdf":
             raise ConversionError("Izaberite postojeći PDF dokument.")
+        size_mb = options.input_path.stat().st_size / (1024 * 1024)
+        if size_mb > self.settings.max_pdf_size_mb:
+            raise ResourceLimitError(
+                f"PDF is {size_mb:.1f} MB; limit is {self.settings.max_pdf_size_mb} MB."
+            )
+        if options.dpi > self.settings.max_dpi:
+            raise ResourceLimitError(
+                f"Requested DPI {options.dpi} exceeds limit {self.settings.max_dpi}."
+            )
         try:
             document = fitz.open(options.input_path)
         except Exception as error:
-            raise ConversionError("PDF dokument nije moguće otvoriti.") from error
+            raise InvalidPdfError("PDF dokument nije moguće otvoriti.") from error
         tables: list[ExtractedTable] = []
         structured: list[ReversDocument] = []
         warnings: list[ConversionWarning] = []
         source_counts = {source: 0 for source in ExtractionSource}
-        processor = PageProcessor(options.input_path, self.settings, options.ocr_mode,
-                                  options.dpi, options.languages)
+        processor = PageProcessor(
+            options.input_path, self.settings, options.ocr_mode, options.dpi, options.languages
+        )
         with document:
+            if document.needs_pass:
+                raise PasswordProtectedPdfError("PDF dokument zahteva lozinku.")
+            if document.page_count > self.settings.max_pages:
+                raise ResourceLimitError(
+                    f"PDF has {document.page_count} pages; limit is {self.settings.max_pages}."
+                )
             pages = tuple(options.pages or range(1, document.page_count + 1))
             total_pages = len(pages)
             if any(page < 1 or page > document.page_count for page in pages):
                 raise ConversionError("Izbor stranica je izvan opsega dokumenta.")
             for completed, page_number in enumerate(pages):
                 if cancelled():
-                    return ConversionResult(options.output_path, ConversionStatus.CANCELLED,
-                                            tables, completed, list(structured), warnings)
+                    return ConversionResult(
+                        options.output_path,
+                        ConversionStatus.CANCELLED,
+                        tables,
+                        completed,
+                        list(structured),
+                        warnings,
+                    )
                 result = processor.process(document[page_number - 1])
                 source_counts[result.extraction_source] += 1
                 warnings.extend(result.warnings)
@@ -53,26 +92,48 @@ class ConversionPipeline:
                     structured.append(result.revers)
                     if options.output_mode in (OutputMode.PRESERVE_TABLES, OutputMode.BOTH):
                         assert result.grid is not None
-                        source = (SourceType.DIGITAL
-                                  if result.extraction_source == ExtractionSource.NATIVE
-                                  else SourceType.OCR)
-                        tables.append(ExtractedTable(
-                            page_number, 1, assign_words_to_cells(result.grid, result.words), source))
+                        source = (
+                            SourceType.DIGITAL
+                            if result.extraction_source == ExtractionSource.NATIVE
+                            else SourceType.OCR
+                        )
+                        tables.append(
+                            ExtractedTable(
+                                page_number,
+                                1,
+                                assign_words_to_cells(result.grid, result.words),
+                                source,
+                            )
+                        )
                 elif options.output_mode != OutputMode.STRUCTURED:
                     extracted = result.tables or extract_digital_tables(
-                        options.input_path, page_number)
+                        options.input_path, page_number
+                    )
                     cleaned = [clean_table(table) for table in extracted]
                     tables.extend(table for table in cleaned if table.rows)
                 if progress:
-                    progress(ProgressUpdate(completed + 1, len(pages),
-                                            f"Obrađena stranica {page_number}"))
+                    progress(
+                        ProgressUpdate(
+                            completed + 1, len(pages), f"Obrađena stranica {page_number}"
+                        )
+                    )
         if cancelled():
-            return ConversionResult(options.output_path, ConversionStatus.CANCELLED,
-                                    tables, len(pages), list(structured), warnings)
-        final_path = export_tables(tables, options.output_path, structured,
-                                   options.output_mode, options.include_empty_template_rows)
-        status = (ConversionStatus.SUCCESS_WITH_WARNINGS if warnings
-                  else ConversionStatus.SUCCESS)
+            return ConversionResult(
+                options.output_path,
+                ConversionStatus.CANCELLED,
+                tables,
+                len(pages),
+                list(structured),
+                warnings,
+            )
+        final_path = export_tables(
+            tables,
+            options.output_path,
+            structured,
+            options.output_mode,
+            options.include_empty_template_rows,
+        )
+        status = ConversionStatus.SUCCESS_WITH_WARNINGS if warnings else ConversionStatus.SUCCESS
         return ConversionResult(
             final_path,
             status,

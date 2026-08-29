@@ -14,6 +14,7 @@ from .document import (
     ReversDocument,
     WordSource,
     WarningSeverity,
+    WarningCode,
 )
 
 __all__ = [
@@ -37,4 +38,5 @@ __all__ = [
     "ReversDocument",
     "WordSource",
     "WarningSeverity",
+    "WarningCode",
 ]

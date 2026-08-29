@@ -14,15 +14,23 @@ def detect_grids(
     grids: list[DetectedGrid] = []
     for x_group in _continuous_groups(xs, vertical, horizontal, True, tolerance):
         related_y = [
-            y for y in ys
-            if any(line.start_x <= x_group[0] + tolerance and line.end_x >= x_group[-1] - tolerance
-                   and abs(line.start_y - y) <= tolerance for line in horizontal)
+            y
+            for y in ys
+            if any(
+                line.start_x <= x_group[0] + tolerance
+                and line.end_x >= x_group[-1] - tolerance
+                and abs(line.start_y - y) <= tolerance
+                for line in horizontal
+            )
         ]
         if len(x_group) >= 2 and len(related_y) >= 2:
-            grids.append(DetectedGrid(
-                BoundingBox(x_group[0], related_y[0], x_group[-1], related_y[-1]),
-                tuple(related_y), tuple(x_group)
-            ))
+            grids.append(
+                DetectedGrid(
+                    BoundingBox(x_group[0], related_y[0], x_group[-1], related_y[-1]),
+                    tuple(related_y),
+                    tuple(x_group),
+                )
+            )
     return sorted(grids, key=lambda grid: grid.bbox.width * grid.bbox.height, reverse=True)
 
 
@@ -37,8 +45,11 @@ def _cluster(values: list[float], tolerance: float) -> list[float]:
 
 
 def _continuous_groups(
-    xs: list[float], vertical: list[DetectedLine], horizontal: list[DetectedLine],
-    _vertical_axis: bool, tolerance: float,
+    xs: list[float],
+    vertical: list[DetectedLine],
+    horizontal: list[DetectedLine],
+    _vertical_axis: bool,
+    tolerance: float,
 ) -> list[list[float]]:
     if not xs:
         return []
@@ -46,8 +57,10 @@ def _continuous_groups(
     groups: list[list[float]] = [[xs[0]]]
     for x in xs[1:]:
         previous = groups[-1][-1]
-        bridged = any(line.start_x <= previous + tolerance and line.end_x >= x - tolerance
-                      for line in horizontal)
+        bridged = any(
+            line.start_x <= previous + tolerance and line.end_x >= x - tolerance
+            for line in horizontal
+        )
         if bridged:
             groups[-1].append(x)
         else:
@@ -57,6 +70,9 @@ def _continuous_groups(
 
 def cell_boxes(grid: DetectedGrid) -> list[list[BoundingBox]]:
     return [
-        [BoundingBox(x0, y0, x1, y1) for x0, x1 in zip(grid.column_boundaries, grid.column_boundaries[1:])]
+        [
+            BoundingBox(x0, y0, x1, y1)
+            for x0, x1 in zip(grid.column_boundaries, grid.column_boundaries[1:])
+        ]
         for y0, y1 in zip(grid.row_boundaries, grid.row_boundaries[1:])
     ]

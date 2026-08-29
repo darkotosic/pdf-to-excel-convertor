@@ -9,13 +9,21 @@ import numpy as np
 
 from pdf_to_excel.config import Settings
 from pdf_to_excel.extraction.generic_ruled import extract_generic_ruled_tables
-from pdf_to_excel.models import (BoundingBox, DetectedGrid, DocumentWord, OCRMode,
-                                 PageType, ReversDocument, ConversionWarning, ExtractedTable,
-                                 ExtractionSource)
+from pdf_to_excel.models import (
+    BoundingBox,
+    DetectedGrid,
+    DocumentWord,
+    OCRMode,
+    PageType,
+    ReversDocument,
+    WarningCode,
+    ConversionWarning,
+    ExtractedTable,
+    ExtractionSource,
+)
 from pdf_to_excel.ocr.deskew import deskew
 from pdf_to_excel.ocr.orientation import correct_orientation
-from pdf_to_excel.ocr.preprocessing import (OCRProfile, preprocess,
-                                            remove_detected_table_lines)
+from pdf_to_excel.ocr.preprocessing import OCRProfile, preprocess, remove_detected_table_lines
 from pdf_to_excel.ocr.tesseract_engine import TesseractEngine
 from pdf_to_excel.pdf.analyzer import PageAnalysis, analyze_page
 from pdf_to_excel.pdf.native_extractor import extract_native_words, extract_vector_lines
@@ -42,8 +50,14 @@ class PageResult:
 
 
 class PageProcessor:
-    def __init__(self, source: Path, settings: Settings, ocr_mode: OCRMode,
-                 dpi: int, languages: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        source: Path,
+        settings: Settings,
+        ocr_mode: OCRMode,
+        dpi: int,
+        languages: tuple[str, ...],
+    ) -> None:
         self.source, self.settings, self.ocr_mode = source, settings, ocr_mode
         self.dpi, self.languages = dpi, languages
         self._ocr: TesseractEngine | None = None
@@ -68,9 +82,13 @@ class PageProcessor:
         # Native PDF points are the canonical DIGITAL coordinate system.
         horizontal, vertical = extract_vector_lines(page)
         grids = detect_grids(merge_collinear(horizontal), merge_collinear(vertical), tolerance=2)
-        grid, grid_confidence = select_revers_equipment_grid(grids, page.rect.width, page.rect.height)
+        grid, grid_confidence = select_revers_equipment_grid(
+            grids, page.rect.width, page.rect.height
+        )
 
-        needs_raster = force_ocr or analysis.page_type in (PageType.SCANNED, PageType.MIXED) or grid is None
+        needs_raster = (
+            force_ocr or analysis.page_type in (PageType.SCANNED, PageType.MIXED) or grid is None
+        )
         if needs_raster:
             rendered = render()
             # Configure pytesseract before orientation detection (which invokes OSD).
@@ -81,26 +99,35 @@ class PageProcessor:
             rh, rv, horizontal_mask, vertical_mask = detect_ruled_lines(oriented)
             raster_grids = detect_grids(rh, rv)
             raster_grid, raster_confidence = select_revers_equipment_grid(
-                raster_grids, oriented.shape[1], oriented.shape[0])
+                raster_grids, oriented.shape[1], oriented.shape[0]
+            )
             if (force_ocr or not use_native) and raster_grid is not None:
                 grid, grid_confidence = raster_grid, raster_confidence
             elif grid is None and raster_grid is not None:
-                grid = _scale_grid(raster_grid, page.rect.width / rendered.shape[1],
-                                   page.rect.height / rendered.shape[0])
+                grid = _scale_grid(
+                    raster_grid,
+                    page.rect.width / rendered.shape[1],
+                    page.rect.height / rendered.shape[0],
+                )
                 grid_confidence = raster_confidence
 
             if force_ocr or analysis.page_type == PageType.SCANNED:
                 # Geometry comes from the ruled original; OCR sees a rule-free copy.
-                ocr_image = remove_detected_table_lines(
-                    oriented, horizontal_mask, vertical_mask)
+                ocr_image = remove_detected_table_lines(oriented, horizontal_mask, vertical_mask)
                 words = self._extract_ocr(
-                    preprocess(ocr_image, OCRProfile.CLEAN_SCAN), page.number + 1)
+                    preprocess(ocr_image, OCRProfile.CLEAN_SCAN), page.number + 1
+                )
 
-        if analysis.page_type == PageType.MIXED and self.ocr_mode != OCRMode.NEVER and not force_ocr:
+        if (
+            analysis.page_type == PageType.MIXED
+            and self.ocr_mode != OCRMode.NEVER
+            and not force_ocr
+        ):
             assert rendered is not None
             ocr_words = self._extract_ocr(preprocess(rendered), page.number + 1)
-            ocr_words = _scale_words(ocr_words, page.rect.width / rendered.shape[1],
-                                     page.rect.height / rendered.shape[0])
+            ocr_words = _scale_words(
+                ocr_words, page.rect.width / rendered.shape[1], page.rect.height / rendered.shape[0]
+            )
             words, merge_warnings = merge_document_words(native, ocr_words, page.number + 1)
         else:
             merge_warnings = []
@@ -113,7 +140,11 @@ class PageProcessor:
         else:
             extraction_source = ExtractionSource.NATIVE
         result = PageResult(
-            analysis, template, words, grid, grid_confidence,
+            analysis,
+            template,
+            words,
+            grid,
+            grid_confidence,
             extraction_source=extraction_source,
         )
         result.warnings.extend(render_warnings)
@@ -122,76 +153,116 @@ class PageProcessor:
             if rendered is None:
                 rendered = render()
             if use_native and not force_ocr:
-                words = _suppress_phantoms(words, grid, rendered, page.rect.width, page.rect.height,
-                                           result.warnings)
+                words = _suppress_phantoms(
+                    words, grid, rendered, page.rect.width, page.rect.height, result.warnings
+                )
                 result.words = words
-            result.revers = extract_revers(self.source, page.number + 1, grid, words,
-                                           template.confidence * grid_confidence)
+            result.revers = extract_revers(
+                self.source, page.number + 1, grid, words, template.confidence * grid_confidence
+            )
             result.revers.warnings[:0] = result.warnings
             result.warnings = list(result.revers.warnings)
         elif raster_grids and (force_ocr or analysis.page_type == PageType.SCANNED):
             result.tables = extract_generic_ruled_tables(
-                raster_grids, words, page.number + 1, raster_width, raster_height)
+                raster_grids, words, page.number + 1, raster_width, raster_height
+            )
         return result
 
     def _extract_ocr(self, image: np.ndarray, page_number: int) -> list[DocumentWord]:
         return self._ensure_ocr().extract_words(image, page_number, self.languages, psm=6)
 
     def _ensure_ocr(self) -> TesseractEngine:
-        self._ocr = self._ocr or TesseractEngine(self.settings.tesseract_cmd,
-                                                  self.settings.confidence_threshold)
+        self._ocr = self._ocr or TesseractEngine(
+            self.settings.tesseract_cmd,
+            self.settings.confidence_threshold,
+            self.settings.page_ocr_timeout_seconds,
+        )
         return self._ocr
 
 
 def _scale_grid(grid: DetectedGrid, sx: float, sy: float) -> DetectedGrid:
-    return DetectedGrid(BoundingBox(grid.bbox.x0*sx, grid.bbox.y0*sy,
-                                    grid.bbox.x1*sx, grid.bbox.y1*sy),
-                        tuple(y*sy for y in grid.row_boundaries),
-                        tuple(x*sx for x in grid.column_boundaries))
+    return DetectedGrid(
+        BoundingBox(grid.bbox.x0 * sx, grid.bbox.y0 * sy, grid.bbox.x1 * sx, grid.bbox.y1 * sy),
+        tuple(y * sy for y in grid.row_boundaries),
+        tuple(x * sx for x in grid.column_boundaries),
+    )
 
 
 def _scale_words(words: list[DocumentWord], sx: float, sy: float) -> list[DocumentWord]:
-    return [DocumentWord(word.text, BoundingBox(word.bbox.x0*sx, word.bbox.y0*sy,
-                                                word.bbox.x1*sx, word.bbox.y1*sy),
-                         word.confidence, word.page_number, word.source) for word in words]
+    return [
+        DocumentWord(
+            word.text,
+            BoundingBox(word.bbox.x0 * sx, word.bbox.y0 * sy, word.bbox.x1 * sx, word.bbox.y1 * sy),
+            word.confidence,
+            word.page_number,
+            word.source,
+        )
+        for word in words
+    ]
 
 
-def merge_document_words(native: list[DocumentWord], ocr: list[DocumentWord],
-                         page_number: int = 1) -> tuple[list[DocumentWord], list[ConversionWarning]]:
+def merge_document_words(
+    native: list[DocumentWord], ocr: list[DocumentWord], page_number: int = 1
+) -> tuple[list[DocumentWord], list[ConversionWarning]]:
     merged, warnings = list(native), []
     for candidate in ocr:
-        overlaps = [word for word in merged if word.bbox.overlap_ratio(candidate.bbox) >= .6]
+        overlaps = [word for word in merged if word.bbox.overlap_ratio(candidate.bbox) >= 0.6]
         if not overlaps:
             merged.append(candidate)
             continue
-        best = max(overlaps, key=lambda word: SequenceMatcher(None, word.text.casefold(),
-                                                               candidate.text.casefold()).ratio())
+        best = max(
+            overlaps,
+            key=lambda word: SequenceMatcher(
+                None, word.text.casefold(), candidate.text.casefold()
+            ).ratio(),
+        )
         similarity = SequenceMatcher(None, best.text.casefold(), candidate.text.casefold()).ratio()
-        if similarity < .7:
-            warnings.append(ConversionWarning(
-                "Native/OCR disagreement", page_number, value=candidate.text,
-                confidence=candidate.confidence, source=candidate.source,
-                code="NATIVE_OCR_DISAGREEMENT"))
+        if similarity < 0.7:
+            warnings.append(
+                ConversionWarning(
+                    "Native/OCR disagreement",
+                    page_number,
+                    value=candidate.text,
+                    confidence=candidate.confidence,
+                    source=candidate.source,
+                    code=WarningCode.NATIVE_OCR_DISAGREEMENT,
+                )
+            )
             if candidate.confidence > best.confidence:
                 merged.remove(best)
                 merged.append(candidate)
     return merged, warnings
 
 
-def _suppress_phantoms(words: list[DocumentWord], grid: DetectedGrid, image: np.ndarray,
-                       page_width: float, page_height: float,
-                       warnings: list[ConversionWarning]) -> list[DocumentWord]:
+def _suppress_phantoms(
+    words: list[DocumentWord],
+    grid: DetectedGrid,
+    image: np.ndarray,
+    page_width: float,
+    page_height: float,
+    warnings: list[ConversionWarning],
+) -> list[DocumentWord]:
     result = []
     for word in words:
-        suspicious = (len(word.text.strip()) == 1 and not word.text.isdigit() and
-                      grid.bbox.y0 < word.bbox.center_y < grid.bbox.y1)
-        pixel_bbox = pdf_bbox_to_pixels(word.bbox, page_width, page_height,
-                                        image.shape[1], image.shape[0])
+        suspicious = (
+            len(word.text.strip()) == 1
+            and not word.text.isdigit()
+            and grid.bbox.y0 < word.bbox.center_y < grid.bbox.y1
+        )
+        pixel_bbox = pdf_bbox_to_pixels(
+            word.bbox, page_width, page_height, image.shape[1], image.shape[0]
+        )
         if suspicious and not has_visible_foreground(image, pixel_bbox):
-            warnings.append(ConversionWarning(
-                "Phantom native text suppressed", word.page_number, value=word.text,
-                confidence=word.confidence, source=word.source,
-                code="PHANTOM_TEXT_SUPPRESSED"))
+            warnings.append(
+                ConversionWarning(
+                    "Phantom native text suppressed",
+                    word.page_number,
+                    value=word.text,
+                    confidence=word.confidence,
+                    source=word.source,
+                    code=WarningCode.PHANTOM_TEXT_SUPPRESSED,
+                )
+            )
             continue
         result.append(word)
     return result

@@ -8,14 +8,19 @@ from .formatting import format_sheet
 from .security import safe_excel_text
 
 
-def export_tables(tables: list[ExtractedTable], destination: Path,
-                  documents: list[ReversDocument] | None = None,
-                  output_mode: OutputMode = OutputMode.PRESERVE_TABLES,
-                  include_empty_rows: bool = False) -> Path:
+def export_tables(
+    tables: list[ExtractedTable],
+    destination: Path,
+    documents: list[ReversDocument] | None = None,
+    output_mode: OutputMode = OutputMode.PRESERVE_TABLES,
+    include_empty_rows: bool = False,
+) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
         destination = available_output_path(destination)
-    descriptor, name = tempfile.mkstemp(prefix=f".{destination.stem}-", suffix=".xlsx", dir=destination.parent)
+    descriptor, name = tempfile.mkstemp(
+        prefix=f".{destination.stem}-", suffix=".xlsx", dir=destination.parent
+    )
     os.close(descriptor)
     temporary = Path(name)
     workbook = Workbook()
@@ -37,7 +42,9 @@ def export_tables(tables: list[ExtractedTable], destination: Path,
             values = []
             for cell in row:
                 inferred = infer_value(cell.text)
-                values.append(inferred if not isinstance(inferred, str) else safe_excel_text(inferred))
+                values.append(
+                    inferred if not isinstance(inferred, str) else safe_excel_text(inferred)
+                )
             sheet.append(values)
         format_sheet(sheet)
     try:
@@ -54,21 +61,51 @@ def export_tables(tables: list[ExtractedTable], destination: Path,
     return destination
 
 
-def _add_structured_sheets(workbook: Workbook, documents: list[ReversDocument],
-                           include_empty_rows: bool) -> None:
+def _add_structured_sheets(
+    workbook: Workbook, documents: list[ReversDocument], include_empty_rows: bool
+) -> None:
     equipment = workbook.create_sheet("Equipment")
-    equipment.append(["Source File", "Page", "Person", "Person ID", "Organization Unit",
-                      "Item No.", "Equipment Type", "Model", "Quantity", "Serial Number",
-                      "Inventory Number", "Handover Date", "Handed Over By", "Received By",
-                      "Confidence"])
+    equipment.append(
+        [
+            "Source File",
+            "Page",
+            "Person",
+            "Person ID",
+            "Organization Unit",
+            "Item No.",
+            "Equipment Type",
+            "Model",
+            "Quantity",
+            "Serial Number",
+            "Inventory Number",
+            "Handover Date",
+            "Handed Over By",
+            "Received By",
+            "Confidence",
+        ]
+    )
     for document in documents:
         items = document.equipment_items if include_empty_rows else document.populated_items()
         for item in items:
-            equipment.append([document.source_file.name, document.page_number, document.person_name,
-                              document.person_identifier, document.organization_unit, item.item_number,
-                              item.equipment_type, item.model, item.quantity, item.serial_number,
-                              item.inventory_number, document.handover_date, document.handed_over_by,
-                              document.received_by, item.confidence])
+            equipment.append(
+                [
+                    document.source_file.name,
+                    document.page_number,
+                    document.person_name,
+                    document.person_identifier,
+                    document.organization_unit,
+                    item.item_number,
+                    item.equipment_type,
+                    item.model,
+                    item.quantity,
+                    item.serial_number,
+                    item.inventory_number,
+                    document.handover_date,
+                    document.handed_over_by,
+                    document.received_by,
+                    item.confidence,
+                ]
+            )
     for row in range(2, equipment.max_row + 1):
         for column in (4, 10, 11):
             equipment.cell(row, column).number_format = "@"
@@ -83,21 +120,58 @@ def _add_structured_sheets(workbook: Workbook, documents: list[ReversDocument],
         human.append(["Handed Over By", document.handed_over_by])
         human.append(["Received By", document.received_by])
         human.append([])
-        human.append(["Red. broj", "Vrsta računarske opreme", "Model", "Kol",
-                      "Serijski broj", "Inventarski broj"])
+        human.append(
+            [
+                "Red. broj",
+                "Vrsta računarske opreme",
+                "Model",
+                "Kol",
+                "Serijski broj",
+                "Inventarski broj",
+            ]
+        )
         for item in document.equipment_items if include_empty_rows else document.populated_items():
-            human.append([item.item_number, item.equipment_type, item.model, item.quantity,
-                          item.serial_number, item.inventory_number])
+            human.append(
+                [
+                    item.item_number,
+                    item.equipment_type,
+                    item.model,
+                    item.quantity,
+                    item.serial_number,
+                    item.inventory_number,
+                ]
+            )
     format_sheet(human)
     warnings = [(document, warning) for document in documents for warning in document.warnings]
     if warnings:
         review = workbook.create_sheet("Review")
-        review.append(["Severity", "Warning Code", "Page", "Row", "Field", "Extracted Value",
-                       "Confidence", "Source", "Warning"])
+        review.append(
+            [
+                "Severity",
+                "Warning Code",
+                "Page",
+                "Row",
+                "Field",
+                "Extracted Value",
+                "Confidence",
+                "Source",
+                "Warning",
+            ]
+        )
         for document, warning in warnings:
-            review.append([warning.severity.value, warning.code, warning.page_number, warning.row,
-                           warning.field, warning.value, warning.confidence,
-                           warning.source.value if warning.source else "", warning.message])
+            review.append(
+                [
+                    warning.severity.value,
+                    warning.code,
+                    warning.page_number,
+                    warning.row,
+                    warning.field,
+                    warning.value,
+                    warning.confidence,
+                    warning.source.value if warning.source else "",
+                    warning.message,
+                ]
+            )
         format_sheet(review)
 
 

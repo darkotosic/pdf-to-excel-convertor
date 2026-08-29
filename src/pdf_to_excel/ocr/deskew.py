@@ -10,8 +10,12 @@ def estimate_skew_angle(image: np.ndarray, maximum_angle: float = 5.0) -> float:
     edges = cv2.Canny(gray, 50, 150, apertureSize=3)
     _, width = gray.shape[:2]
     lines = cv2.HoughLinesP(
-        edges, 1, np.pi / 1800, threshold=max(50, width // 8),
-        minLineLength=max(50, width // 4), maxLineGap=max(10, width // 100),
+        edges,
+        1,
+        np.pi / 1800,
+        threshold=max(50, width // 8),
+        minLineLength=max(50, width // 4),
+        maxLineGap=max(10, width // 100),
     )
     if lines is None:
         return 0.0
@@ -31,6 +35,10 @@ def deskew(image: np.ndarray, maximum_angle: float = 5.0) -> np.ndarray:
     height, width = image.shape[:2]
     matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1.0)
     return cv2.warpAffine(
-        image, matrix, (width, height), flags=cv2.INTER_CUBIC,
-        borderMode=cv2.BORDER_CONSTANT, borderValue=(255, 255, 255),
+        image,
+        matrix,
+        (width, height),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(255, 255, 255),
     )

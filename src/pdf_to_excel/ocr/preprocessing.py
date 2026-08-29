@@ -25,8 +25,12 @@ def enhance_contrast(image: np.ndarray) -> np.ndarray:
 
 def adaptive_binarize(image: np.ndarray) -> np.ndarray:
     return cv2.adaptiveThreshold(
-        to_grayscale(image), 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 35, 15,
+        to_grayscale(image),
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        35,
+        15,
     )
 
 
@@ -42,8 +46,9 @@ def preprocess(image: np.ndarray, profile: OCRProfile = OCRProfile.AUTO) -> np.n
     return adaptive_binarize(denoise(gray))
 
 
-def remove_detected_table_lines(image: np.ndarray, horizontal_mask: np.ndarray,
-                                vertical_mask: np.ndarray) -> np.ndarray:
+def remove_detected_table_lines(
+    image: np.ndarray, horizontal_mask: np.ndarray, vertical_mask: np.ndarray
+) -> np.ndarray:
     """Remove detected rules while retaining a clean, white OCR background."""
     gray = to_grayscale(image)
     mask = cv2.bitwise_or(horizontal_mask, vertical_mask)

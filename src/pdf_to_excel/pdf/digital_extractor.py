@@ -25,6 +25,7 @@ def extract_digital_tables(path: Path, page_number: int) -> list[ExtractedTable]
 
 def _words_to_rows(words: list[dict[str, object]]) -> list[list[str | None]]:
     lines: list[list[dict[str, object]]] = []
+
     def coordinate(word: dict[str, object], key: str) -> float:
         value = word[key]
         if not isinstance(value, (str, int, float)):
@@ -33,7 +34,12 @@ def _words_to_rows(words: list[dict[str, object]]) -> list[list[str | None]]:
 
     for word in sorted(words, key=lambda w: (coordinate(w, "top"), coordinate(w, "x0"))):
         line = next(
-            (line for line in lines if abs(coordinate(line[0], "top") - coordinate(word, "top")) <= 4), None
+            (
+                line
+                for line in lines
+                if abs(coordinate(line[0], "top") - coordinate(word, "top")) <= 4
+            ),
+            None,
         )
         if line is None:
             line = []
