@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from PySide6.QtCore import QThread
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QApplication,
@@ -20,6 +20,7 @@ from pdf_to_excel.constants import APP_NAME
 from pdf_to_excel.models import ConversionOptions
 from pdf_to_excel.utils.files import default_output_path
 from pdf_to_excel.utils.logging_config import configure_logging
+from pdf_to_excel.utils.paths import get_resource_path
 from .conversion_worker import ConversionWorker
 from .widgets import PdfDropEdit
 
@@ -117,6 +118,9 @@ class MainWindow(QMainWindow):
 def run() -> int:
     configure_logging()
     application = QApplication(sys.argv)
+    icon = get_resource_path("assets/app.ico")
+    if icon.is_file():
+        application.setWindowIcon(QIcon(str(icon)))
     window = MainWindow()
     window.show()
     return application.exec()

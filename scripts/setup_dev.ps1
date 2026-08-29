@@ -1,4 +1,8 @@
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-py -3.12 -m venv .venv
-& .venv\Scripts\python -m pip install --upgrade pip
-& .venv\Scripts\python -m pip install -e ".[dev]"
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$Venv = Join-Path $Root ".venv"
+py -3.12 -m venv $Venv
+$Python = Join-Path $Venv "Scripts\python.exe"
+& $Python -m pip install --upgrade pip
+& $Python -m pip install -e "${Root}[dev]"
